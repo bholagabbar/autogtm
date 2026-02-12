@@ -2,29 +2,28 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Search, Brain, Mail, BarChart3, Zap, Clock, Target, Send } from 'lucide-react';
+import { ArrowRight, Search, Brain, Mail, BarChart3, Zap, Clock, Target, X } from 'lucide-react';
 
 export default function LandingPage() {
+  const [showContact, setShowContact] = useState(false);
   const [contactForm, setContactForm] = useState({ name: '', email: '', message: '' });
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
-  const [error, setError] = useState('');
 
   const handleContact = async (e: React.FormEvent) => {
     e.preventDefault();
     setSending(true);
-    setError('');
     try {
       const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(contactForm),
       });
-      if (!res.ok) throw new Error('Failed to send');
+      if (!res.ok) throw new Error('Failed');
       setSent(true);
       setContactForm({ name: '', email: '', message: '' });
     } catch {
-      setError('Something went wrong. Try emailing us directly at shreyans@cmnlabs.co');
+      // silent fail
     } finally {
       setSending(false);
     }
@@ -46,12 +45,12 @@ export default function LandingPage() {
             >
               Sign in
             </Link>
-            <Link
-              href="/login"
+            <button
+              onClick={() => { setShowContact(true); setSent(false); }}
               className="text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors px-4 py-2 rounded-lg"
             >
-              Get Started
-            </Link>
+              Request invite
+            </button>
           </div>
         </div>
       </nav>
@@ -69,16 +68,16 @@ export default function LandingPage() {
             <span className="text-indigo-600">on autopilot</span>
           </h1>
           <p className="mt-6 text-lg sm:text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
-            Describe your target audience in plain English. autogtm finds leads, scores them with AI, writes personalized emails, and sends campaigns &mdash; every day, automatically.
+            Describe your target audience in plain English. autogtm finds leads, scores them with AI, writes personalized emails, and sends campaigns every day, automatically.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              href="/login"
+            <button
+              onClick={() => { setShowContact(true); setSent(false); }}
               className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-3 rounded-lg transition-colors text-base"
             >
-              Start for free
+              Request invite
               <ArrowRight className="h-4 w-4" />
-            </Link>
+            </button>
             <a
               href="#how-it-works"
               className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 font-medium px-6 py-3 transition-colors text-base"
@@ -223,102 +222,97 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Integrations */}
-      <section className="py-16 px-6 border-y border-gray-100">
-        <div className="max-w-5xl mx-auto">
-          <p className="text-center text-sm font-medium text-gray-400 uppercase tracking-wider mb-8">
-            Powered by
+      {/* Why */}
+      <section className="py-24 px-6 bg-gray-50">
+        <div className="max-w-2xl mx-auto text-center">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-950">
+            Why we built this
+          </h2>
+          <p className="mt-5 text-gray-500 leading-relaxed">
+            Solo teams and bootstrappers often need to test several GTM motions at once. Finding leads, writing copy, managing campaigns across tools, doing it all manually is painful and slow. We stitched together the best tools in the space and put them on autopilot so the highest-quality leads are always at your fingertips.
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-x-12 gap-y-4">
-            {['Exa.ai', 'Instantly.ai', 'OpenAI', 'Supabase', 'Inngest', 'Resend'].map((name) => (
-              <span key={name} className="text-base font-semibold text-gray-400">
-                {name}
-              </span>
-            ))}
+          <div className="mt-8">
+            <button
+              onClick={() => { setShowContact(true); setSent(false); }}
+              className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-3 rounded-lg transition-colors text-sm"
+            >
+              Request invite
+              <ArrowRight className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </section>
 
-      {/* Contact */}
-      <section id="contact" className="py-24 px-6 bg-gray-50">
-        <div className="max-w-xl mx-auto">
-          <div className="text-center mb-10">
-            <h2 className="text-3xl font-bold tracking-tight text-gray-950">Get in touch</h2>
-            <p className="mt-3 text-gray-500">
-              Want to learn more, request a demo, or discuss a custom deployment? Drop us a line.
-            </p>
-          </div>
-          {sent ? (
-            <div className="bg-white border border-gray-200 rounded-xl p-8 text-center">
-              <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Send className="h-5 w-5 text-emerald-600" />
+      {/* Contact Modal */}
+      {showContact && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowContact(false)}>
+          <div className="bg-white rounded-xl w-full max-w-md mx-4 p-6 relative" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setShowContact(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+              <X className="h-4 w-4" />
+            </button>
+            {sent ? (
+              <div className="text-center py-4">
+                <p className="text-sm font-medium text-gray-900">Request received. We&#39;ll be in touch.</p>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">Message sent</h3>
-              <p className="text-sm text-gray-500">We&apos;ll get back to you shortly.</p>
-            </div>
-          ) : (
-            <form onSubmit={handleContact} className="bg-white border border-gray-200 rounded-xl p-8 space-y-5">
-              <div>
-                <label htmlFor="contact-name" className="block text-sm font-medium text-gray-700 mb-1.5">Name</label>
+            ) : (
+              <form onSubmit={handleContact} className="space-y-4">
+                <h3 className="text-base font-semibold text-gray-900">Request an invite</h3>
+                <p className="text-sm text-gray-500">autogtm is currently invite-only. Tell us a bit about yourself and we&#39;ll send you a code.</p>
                 <input
-                  id="contact-name"
                   type="text"
                   required
                   value={contactForm.name}
                   onChange={(e) => setContactForm({ ...contactForm, name: e.target.value })}
-                  className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  placeholder="Your name"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="Name"
                 />
-              </div>
-              <div>
-                <label htmlFor="contact-email" className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
                 <input
-                  id="contact-email"
                   type="email"
                   required
                   value={contactForm.email}
                   onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
-                  className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  placeholder="you@company.com"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="Email"
                 />
-              </div>
-              <div>
-                <label htmlFor="contact-message" className="block text-sm font-medium text-gray-700 mb-1.5">Message</label>
                 <textarea
-                  id="contact-message"
-                  required
-                  rows={4}
+                  rows={2}
                   value={contactForm.message}
                   onChange={(e) => setContactForm({ ...contactForm, message: e.target.value })}
-                  className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-                  placeholder="Tell us about your use case..."
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                  placeholder="What are you working on? (optional)"
                 />
-              </div>
-              {error && (
-                <p className="text-sm text-red-600">{error}</p>
-              )}
-              <button
-                type="submit"
-                disabled={sending}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm disabled:opacity-50"
-              >
-                {sending ? 'Sending...' : 'Send message'}
-              </button>
-            </form>
-          )}
+                <button
+                  type="submit"
+                  disabled={sending}
+                  className="w-full bg-gray-900 hover:bg-gray-800 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm disabled:opacity-50"
+                >
+                  {sending ? 'Sending...' : 'Request invite'}
+                </button>
+              </form>
+            )}
+          </div>
         </div>
-      </section>
+      )}
 
       {/* Footer */}
-      <footer className="py-12 px-6 border-t border-gray-100">
+      <footer className="py-10 px-6 border-t border-gray-100">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-0">
             <span className="font-black text-lg tracking-tight text-gray-900">auto</span>
             <span className="font-black text-lg tracking-tight text-white bg-indigo-600 px-1.5 py-0.5 rounded-md ml-0.5">gtm</span>
           </div>
-          <p className="text-sm text-gray-400">
-            &copy; {new Date().getFullYear()} CMN Labs. All rights reserved.
-          </p>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => { setShowContact(true); setSent(false); }}
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              Request invite
+            </button>
+            <span className="text-gray-200">|</span>
+            <p className="text-xs text-gray-400">
+              &copy; {new Date().getFullYear()} autogtm
+            </p>
+          </div>
         </div>
       </footer>
     </div>

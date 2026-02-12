@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const VALID_INVITE_CODES = (process.env.INVITE_CODES || 'AUTOGTM').split(',').map(c => c.trim().toUpperCase());
+const VALID_INVITE_CODES = (process.env.INVITE_CODES || 'GTMBETA').split(',').map(c => c.trim().toUpperCase());
 
 export async function POST(request: NextRequest) {
   const { inviteCode } = await request.json();
