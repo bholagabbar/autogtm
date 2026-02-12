@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 
@@ -20,6 +21,7 @@ export default function RootLayout({
       <body className={inter.className} suppressHydrationWarning>
         <main className="min-h-screen">{children}</main>
         <Toaster />
+        <Analytics />
       </body>
     </html>
   );
