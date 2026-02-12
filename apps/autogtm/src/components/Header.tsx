@@ -42,6 +42,7 @@ export function Header({ userEmail }: HeaderProps) {
     } else if (companies.length > 0) {
       setSelectedCompanyId(companies[0].id);
       localStorage.setItem('autogtm_selected_company', companies[0].id);
+      window.dispatchEvent(new Event('autogtm_company_changed'));
     }
   }, [companies]);
 
@@ -62,7 +63,7 @@ export function Header({ userEmail }: HeaderProps) {
   const handleCompanyChange = (companyId: string) => {
     setSelectedCompanyId(companyId);
     localStorage.setItem('autogtm_selected_company', companyId);
-    // Refresh the page to reload data for new company
+    window.dispatchEvent(new Event('autogtm_company_changed'));
     router.refresh();
   };
 
@@ -133,12 +134,15 @@ export function useSelectedCompany(): string | null {
   useEffect(() => {
     setCompanyId(localStorage.getItem('autogtm_selected_company'));
     
-    // Listen for storage changes
-    const handleStorage = () => {
+    const handleChange = () => {
       setCompanyId(localStorage.getItem('autogtm_selected_company'));
     };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    window.addEventListener('storage', handleChange);
+    window.addEventListener('autogtm_company_changed', handleChange);
+    return () => {
+      window.removeEventListener('storage', handleChange);
+      window.removeEventListener('autogtm_company_changed', handleChange);
+    };
   }, []);
 
   return companyId;
