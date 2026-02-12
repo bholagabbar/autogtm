@@ -1,0 +1,37 @@
+{
+  "name": "@autogtm/core",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "./clients/exa": "./src/clients/exa.ts",
+    "./clients/instantly": "./src/clients/instantly.ts",
+    "./ai/generateQueries": "./src/ai/generateQueries.ts",
+    "./ai/generateEmailCopy": "./src/ai/generateEmailCopy.ts",
+    "./ai/enrichLead": "./src/ai/enrichLead.ts",
+    "./ai/generateDailyQuery": "./src/ai/generateDailyQuery.ts",
+    "./ai/determineCampaign": "./src/ai/determineCampaign.ts",
+    "./ai/extractEmail": "./src/ai/extractEmail.ts",
+    "./campaigns/createCampaignForPersona": "./src/campaigns/createCampaignForPersona.ts",
+    "./db/autogtmDbCalls": "./src/db/autogtmDbCalls.ts",
+    "./types": "./src/types/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit false --skipLibCheck --noImplicitAny false --strictNullChecks false --allowJs",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.6",
+    "exa-js": "^1.4.9",
+    "ioredis": "^5.4.1",
+    "openai": "^4.77.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.28",
+    "eslint": "^8",
+    "prettier": "^3.5.3",
+    "typescript": "^5.4.4"
+  }
+}
