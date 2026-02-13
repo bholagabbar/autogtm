@@ -1,0 +1,6 @@
+{
+    "sdk-url": [
+      "http://localhost:3200/api/inngest"
+    ],
+    "no-discovery": true
+  }
