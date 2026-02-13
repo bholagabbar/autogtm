@@ -13,8 +13,6 @@
   Describe your target audience in plain English. AutoGTM discovers leads daily, enriches them with AI, creates tailored email campaigns, and sends via Instantly. System on, autopilot on, you sleep.
 </p>
 
-<p align="center"><sub>Licensed under <a href="LICENSE">AGPL-3.0</a></sub></p>
-
 ---
 
 ## How it works
@@ -211,4 +209,6 @@ Make sure to:
 
 ## License
 
-MIT
+Licensed under [AGPL-3.0](LICENSE).
+
+**TL;DR:** You can use it, change it, and ship it; if you run a modified version as a service (e.g. a hosted app), you must make that version’s source code available to your users.
