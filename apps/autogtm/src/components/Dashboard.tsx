@@ -564,7 +564,7 @@ export function Dashboard({ userEmail }: DashboardProps) {
     { id: 'context' as Tab, label: 'Context', count: instructions.length, icon: FileText },
     { id: 'searches' as Tab, label: 'Searches', count: stats.queries, icon: Search },
     { id: 'leads' as Tab, label: 'Leads', count: stats.leads, icon: Users },
-    { id: 'campaigns' as Tab, label: 'Campaigns', count: stats.campaigns, icon: Mail },
+    { id: 'campaigns' as Tab, label: 'Campaigns', count: stats.campaigns, icon: Send },
   ];
 
   return (
@@ -1066,7 +1066,7 @@ export function Dashboard({ userEmail }: DashboardProps) {
                                     )}
                                   </div>
 
-                                  {/* Center: Name, Title, Email */}
+                                  {/* Center: Name, Title, Email, Search */}
                                   <div className="min-w-0 flex-1">
                                     <p className="font-medium text-sm text-gray-900 truncate">
                                       {lead.full_name || lead.name || 'Unknown'}
@@ -1074,8 +1074,13 @@ export function Dashboard({ userEmail }: DashboardProps) {
                                     {lead.title && (
                                       <p className="text-xs text-gray-500 truncate">{lead.title}</p>
                                     )}
-                                    {lead.email && (
-                                      <p className="text-xs text-gray-400 truncate mt-0.5">{lead.email}</p>
+                                    {lead.exa_queries?.query && (
+                                      <div className="flex items-center gap-1 mt-1">
+                                        <Search className="h-3 w-3 text-gray-300 shrink-0" />
+                                        <p className="text-xs text-gray-400 truncate" title={lead.exa_queries.query}>
+                                          {lead.exa_queries.query}
+                                        </p>
+                                      </div>
                                     )}
                                   </div>
 
@@ -1088,9 +1093,10 @@ export function Dashboard({ userEmail }: DashboardProps) {
                                           {routedCampaign && (
                                             <button
                                               onClick={() => openCampaignPreview(routedCampaign.id)}
-                                              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium truncate max-w-[180px] transition-colors"
+                                              className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium truncate max-w-[180px] transition-colors"
                                               title={routedCampaign.name}
                                             >
+                                              <Send className="h-3 w-3 shrink-0" />
                                               {routedCampaign.name}
                                             </button>
                                           )}
@@ -1109,9 +1115,10 @@ export function Dashboard({ userEmail }: DashboardProps) {
                                       <div className="flex items-center gap-3">
                                         <button
                                           onClick={() => openCampaignPreview(suggestedCampaign.id)}
-                                          className="text-xs text-indigo-600 hover:text-indigo-800 font-medium truncate max-w-[180px] transition-colors"
+                                          className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium truncate max-w-[180px] transition-colors"
                                           title={suggestedCampaign.name}
                                         >
+                                          <Send className="h-3 w-3 shrink-0" />
                                           {suggestedCampaign.name}
                                         </button>
                                         <div className="flex items-center gap-1.5">
@@ -1369,7 +1376,7 @@ export function Dashboard({ userEmail }: DashboardProps) {
 
                     {campaigns.length === 0 ? (
                       <div className="py-12 text-center">
-                        <Mail className="h-10 w-10 mx-auto mb-4 text-gray-300" />
+                        <Send className="h-10 w-10 mx-auto mb-4 text-gray-300" />
                         <p className="text-gray-500">No campaigns yet. Campaigns are created from leads.</p>
                       </div>
                     ) : (
