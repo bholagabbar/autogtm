@@ -1,16 +1,11 @@
 import { inngest } from './client';
-import { getExaClient, searchInfluencers } from '@autogtm/core/clients/exa';
+import { getExaClient } from '@autogtm/core/clients/exa';
 import { enrichLead } from '@autogtm/core/ai/enrichLead';
 import {
   addLeadsToCampaign,
   getCampaignAnalytics,
 } from '@autogtm/core/clients/instantly';
 import {
-  getActiveExaQueries,
-  createWebsetRun,
-  updateWebsetRun,
-  createLeads,
-  checkLeadExists,
   updateCampaignStats,
   createDailyDigest,
   getLeadsByDateRange,
@@ -494,10 +489,9 @@ export const dailyWebsetSearch = inngest.createFunction(
 
     logger.info(`Processing ${companies.length} companies`);
 
-    // For each company, run ONE query (most recent pending one)
+    // For each company, find ONE pending query, kick off webset, and delegate to processWebsetRun
     for (const company of companies) {
-      await step.run(`run-query-for-${company.id}`, async () => {
-        // Get the most recent pending query for this company
+      const queryToRun = await step.run(`find-query-for-${company.id}`, async () => {
         const { data: queries } = await supabase
           .from('exa_queries')
           .select('*')
@@ -507,75 +501,64 @@ export const dailyWebsetSearch = inngest.createFunction(
           .order('created_at', { ascending: false })
           .limit(1);
 
-        if (!queries || queries.length === 0) {
-          logger.info(`No pending queries for ${company.name}`);
-          return;
-        }
+        if (!queries || queries.length === 0) return null;
+        return queries[0];
+      });
 
-        const query = queries[0];
-        logger.info(`Running query for ${company.name}: "${query.query}"`);
+      if (!queryToRun) {
+        logger.info(`No pending queries for ${company.name}`);
+        continue;
+      }
 
-        // Create webset run record
-        const run = await createWebsetRun({
-          query_id: query.id,
-          webset_id: '',
-          status: 'running',
-          items_found: 0,
-          started_at: new Date().toISOString(),
-          completed_at: null,
-        });
+      logger.info(`Running query for ${company.name}: "${queryToRun.query}"`);
 
-        try {
-          // Execute Exa search
-          const result = await searchInfluencers({
-            query: query.query,
+      // Mark as running immediately so retries don't pick it up again
+      await step.run(`mark-running-${queryToRun.id}`, async () => {
+        await supabase.from('exa_queries').update({ status: 'running' }).eq('id', queryToRun.id);
+      });
+
+      // Create webset (fast — just starts the job on Exa's side)
+      const websetId = await step.run(`create-webset-${queryToRun.id}`, async () => {
+        const exa = getExaClient();
+        const websetParams: any = {
+          search: {
+            query: queryToRun.query,
             count: 25,
-            criteria: query.criteria,
-            includeEmail: true,
-          });
-
-          // Update run with webset ID
-          await updateWebsetRun(run.id, {
-            webset_id: result.websetId,
-            status: 'completed',
-            items_found: result.totalItems,
-            completed_at: new Date().toISOString(),
-          });
-
-          // Filter out duplicates and create leads
-          const newLeads = [];
-          for (const item of result.items) {
-            const exists = await checkLeadExists(item.properties.url);
-            if (!exists) {
-              newLeads.push({
-                query_id: query.id,
-                webset_run_id: run.id,
-                name: item.properties.title || null,
-                email: extractEmailFromEnrichments(item.enrichments),
-                url: item.properties.url,
-                platform: detectPlatform(item.properties.url),
-                follower_count: (item.enrichments?.follower_count as number) || null,
-                enrichment_data: item.enrichments || null,
-                enrichment_status: 'pending' as const,
-                campaign_status: 'pending' as const,
-              });
-            }
-          }
-
-          if (newLeads.length > 0) {
-            await createLeads(newLeads);
-            logger.info(`Created ${newLeads.length} new leads for query ${query.id}`);
-          }
-
-          return { success: true, leadsFound: newLeads.length };
-        } catch (error) {
-          await updateWebsetRun(run.id, {
-            status: 'failed',
-            completed_at: new Date().toISOString(),
-          });
-          logger.error(`Failed to process query ${query.id}:`, error);
-          return { success: false, error: String(error) };
+          },
+          enrichments: [
+            { description: 'Find the email address for this person or creator', format: 'email' },
+            { description: 'Extract the follower or subscriber count if visible', format: 'number' },
+          ],
+        };
+        if (queryToRun.criteria && queryToRun.criteria.length > 0) {
+          websetParams.search.criteria = queryToRun.criteria.map((c: string) => ({ description: c }));
         }
+        const webset = await exa.websets.create(websetParams);
+        return webset.id;
+      });
+
+      // Create run record + dispatch to processWebsetRun (which handles polling via step.sleep)
+      await step.run(`dispatch-webset-${queryToRun.id}`, async () => {
+        const { data: websetRun } = await supabase
+          .from('webset_runs')
+          .insert({
+            query_id: queryToRun.id,
+            webset_id: websetId,
+            status: 'running',
+            items_found: 0,
+            started_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
+
+        await inngest.send({
+          name: 'autogtm/webset.created',
+          data: {
+            queryId: queryToRun.id,
+            websetId,
+            websetRunId: websetRun?.id,
+          },
+        });
       });
     }
 
@@ -894,11 +877,11 @@ export const enrichLeadJob = inngest.createFunction(
         && campaignData.is_accepting_leads
         && (campaignData.leads_count || 0) < (campaignData.max_leads || 500);
 
-      if (campaignData && canAutoAdd) {
+      if (campaignData && canAutoAdd && resolvedEmail?.trim() && enrichedData.full_name?.trim()) {
         logger.info(`Auto-adding lead ${leadId} (fit: ${enrichedData.promotion_fit_score}) to campaign ${suggestedCampaignId}`);
         await step.run('auto-add-to-instantly', () =>
           addLeadsToCampaign(campaignData.instantly_campaign_id, [{
-            email: resolvedEmail!,
+            email: resolvedEmail!.trim(),
             first_name: enrichedData.full_name?.split(' ')[0] || '',
             variables: { lead_url: leadUrl || '' },
           }])
@@ -944,8 +927,8 @@ export const addLeadToCampaignJob = inngest.createFunction(
       return { lead, campaign };
     });
 
-    if (!data.lead?.email) throw new Error(`Lead ${leadId} has no email`);
-    if (!data.lead?.full_name) throw new Error(`Lead ${leadId} has no name - skipping to avoid blank {{first_name}}`);
+    if (!data.lead?.email?.trim()) throw new Error(`Lead ${leadId} has no email`);
+    if (!data.lead?.full_name?.trim()) throw new Error(`Lead ${leadId} has no name - skipping to avoid blank {{first_name}}`);
     if (!data.campaign) throw new Error(`Campaign ${campaignId} not found`);
 
     // Split full_name into first/last
@@ -956,7 +939,7 @@ export const addLeadToCampaignJob = inngest.createFunction(
     // Add to Instantly with all enriched data
     await step.run('add-to-instantly', () =>
       addLeadsToCampaign(data.campaign!.instantly_campaign_id, [{
-        email: data.lead!.email!,
+        email: data.lead!.email!.trim(),
         first_name: firstName,
         last_name: lastName,
         company_name: '',
