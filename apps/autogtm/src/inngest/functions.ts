@@ -72,6 +72,7 @@ export const processWebsetRun = inngest.createFunction(
     id: 'process-webset-run',
     name: 'Process Webset Run',
     retries: 3,
+    concurrency: [{ limit: 1 }],
   },
   { event: 'autogtm/webset.created' },
   async ({ event, step, logger }) => {
@@ -392,6 +393,7 @@ export const generateQueriesOnDemand = inngest.createFunction(
     id: 'generate-queries-on-demand',
     name: 'Generate Queries On Demand',
     retries: 1,
+    concurrency: [{ limit: 1 }],
   },
   { event: 'autogtm/queries.generate' },
   async ({ event, step, logger }) => {

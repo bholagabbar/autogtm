@@ -175,6 +175,31 @@ export function Dashboard({ userEmail }: DashboardProps) {
     }
   }, [companyId]);
 
+  // Poll for leads in transitional states (enriching, routing)
+  useEffect(() => {
+    const hasTransitional = leads.some(
+      l => l.enrichment_status === 'enriching' || l.campaign_status === 'pending'
+    );
+    if (!hasTransitional || !companyId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/leads?company_id=${companyId}`);
+        if (res.ok) {
+          const data = await res.json();
+          const freshLeads: Lead[] = data.leads || [];
+          setLeads(freshLeads);
+          if (selectedLead) {
+            const updated = freshLeads.find((l: Lead) => l.id === selectedLead.id);
+            if (updated) setSelectedLead(updated);
+          }
+        }
+      } catch {}
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [leads.some(l => l.enrichment_status === 'enriching' || l.campaign_status === 'pending'), companyId]);
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -974,7 +999,7 @@ export function Dashboard({ userEmail }: DashboardProps) {
                               <div
                                 key={lead.id}
                                 className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                                  suggestedCampaign && lead.campaign_status !== 'routed'
+                                  suggestedCampaign && !lead.campaign_status
                                     ? 'border-indigo-200 bg-indigo-50/30 hover:border-indigo-300'
                                     : 'border-gray-200 hover:border-gray-300'
                                 }`}
@@ -1014,6 +1039,11 @@ export function Dashboard({ userEmail }: DashboardProps) {
                                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-green-50 text-green-700">
                                         <CheckCircle2 className="h-3 w-3" />
                                         In Campaign
+                                      </span>
+                                    ) : lead.campaign_status === 'pending' ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-amber-50 text-amber-600">
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                        Routing
                                       </span>
                                     ) : suggestedCampaign ? (
                                       <div className="flex items-center gap-3">

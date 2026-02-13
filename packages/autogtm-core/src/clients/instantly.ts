@@ -101,26 +101,28 @@ export async function createCampaign(params: CreateCampaignParams): Promise<Inst
 }
 
 /**
- * Add leads to a campaign
+ * Add leads to a campaign (V2 API: one request per lead)
  */
 export async function addLeadsToCampaign(
   campaignId: string,
   leads: InstantlyLead[]
 ): Promise<void> {
-  // Instantly V2 uses POST /leads to add leads
-  await instantlyFetch('/leads', {
-    method: 'POST',
-    body: JSON.stringify({
-      campaign_id: campaignId,
-      leads: leads.map(lead => ({
+  for (const lead of leads) {
+    await instantlyFetch('/leads', {
+      method: 'POST',
+      body: JSON.stringify({
+        campaign: campaignId,
         email: lead.email,
         first_name: lead.first_name || '',
         last_name: lead.last_name || '',
         company_name: lead.company_name || '',
-        ...lead.variables,
-      })),
-    }),
-  });
+        skip_if_in_campaign: true,
+        ...(lead.variables && Object.keys(lead.variables).length > 0
+          ? { custom_variables: lead.variables }
+          : {}),
+      }),
+    });
+  }
 }
 
 /**

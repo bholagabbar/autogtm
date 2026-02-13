@@ -21,7 +21,7 @@ export interface CreateCampaignParams {
  */
 export declare function createCampaign(params: CreateCampaignParams): Promise<InstantlyCampaign>;
 /**
- * Add leads to a campaign
+ * Add leads to a campaign (V2 API: one request per lead)
  */
 export declare function addLeadsToCampaign(campaignId: string, leads: InstantlyLead[]): Promise<void>;
 /**
