@@ -434,7 +434,7 @@ export default function LandingPage() {
             Why we built this
           </h2>
           <p className="mt-5 text-gray-500 leading-relaxed">
-            Solo founders and small teams need outbound that runs without babysitting. Finding leads, enriching them, writing copy, managing campaigns across tools. It&apos;s painful and slow when done manually. autogtm connects Exa, OpenAI, and Instantly into one pipeline that runs every day on its own, so you wake up to new leads already in campaigns.
+            Solo founders and small teams are busy running the business—building, shipping, juggling a million things. Growth and outbound get pushed to the side, or they have to force themselves to block time for it. For lean, technical founders focused on the product, marketing and fundraising easily become an afterthought. We built autogtm to fix that: one pipeline (Exa, OpenAI, Instantly) that runs every day on its own, so they wake up to new leads ready to go—without the guilt or the context-switching.
           </p>
           <div className="mt-8">
             <button
