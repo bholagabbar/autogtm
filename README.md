@@ -174,6 +174,7 @@ npx inngest-cli@latest dev
 | `RESEND_API_KEY` | No | [resend.com](https://resend.com) for daily digest emails |
 | `DIGEST_FROM_EMAIL` | No | Sender address for digest emails |
 | `DIGEST_RECIPIENTS` | No | Comma-separated recipient emails for daily digest |
+| `CONTACT_FORM_TO` | No | Email address to receive "Request cloud access" form submissions (falls back to first `DIGEST_RECIPIENTS` if unset) |
 | `INVITE_CODES` | No | Comma-separated codes users need to sign up (default: `AUTOGTM`) |
 | `NEXT_PUBLIC_APP_URL` | No | Your app URL (default: `http://localhost:3200`) |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | No | Google Cloud Console, for Google OAuth login |
