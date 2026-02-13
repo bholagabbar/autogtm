@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
-import { ArrowLeft, Loader2, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Trash2, Globe } from 'lucide-react';
 
 interface CompanyEditProps {
   companyId: string;
@@ -20,6 +20,9 @@ export function CompanyEdit({ companyId }: CompanyEditProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
+  const [importUrl, setImportUrl] = useState('');
+  const [importing, setImporting] = useState(false);
+
   const [formData, setFormData] = useState({
     name: '',
     website: '',
@@ -54,6 +57,42 @@ export function CompanyEdit({ companyId }: CompanyEditProps) {
       console.error('Error fetching company:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleImportFromUrl = async () => {
+    if (!importUrl) return;
+    setImporting(true);
+
+    try {
+      const response = await fetch('/api/import-company', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: importUrl }),
+      });
+
+      if (!response.ok) throw new Error('Failed to import');
+
+      const data = await response.json();
+      setFormData({
+        name: data.name || formData.name,
+        website: data.website || importUrl,
+        description: data.description || formData.description,
+        target_audience: data.target_audience || formData.target_audience,
+      });
+
+      toast({
+        title: 'Imported',
+        description: 'Company info populated from URL. Review and edit as needed.',
+      });
+    } catch {
+      toast({
+        variant: 'destructive',
+        title: 'Import failed',
+        description: 'Could not extract company info. Try filling in manually.',
+      });
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -149,6 +188,34 @@ export function CompanyEdit({ companyId }: CompanyEditProps) {
             <p className="text-sm text-gray-500">
               Update your company information
             </p>
+          </div>
+          <div className="px-6 py-4 border-b bg-gray-50/50">
+            <div className="flex items-center gap-2">
+              <Globe className="h-4 w-4 text-gray-400 flex-shrink-0" />
+              <Input
+                placeholder="Paste a company URL to auto-fill..."
+                value={importUrl}
+                onChange={(e) => setImportUrl(e.target.value)}
+                className="flex-1"
+                disabled={importing}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleImportFromUrl}
+                disabled={importing || !importUrl}
+              >
+                {importing ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    Importing...
+                  </>
+                ) : (
+                  'Import'
+                )}
+              </Button>
+            </div>
           </div>
           <div className="p-6">
             <form onSubmit={handleSave} className="space-y-6">
