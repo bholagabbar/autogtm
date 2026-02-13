@@ -918,21 +918,34 @@ export const addLeadToCampaignJob = inngest.createFunction(
     // Get lead + campaign data
     const data = await step.run('get-data', async () => {
       const [{ data: lead }, { data: campaign }] = await Promise.all([
-        supabase.from('leads').select('email, full_name, url').eq('id', leadId).single(),
+        supabase.from('leads').select('email, full_name, title, bio, url, social_links, total_audience').eq('id', leadId).single(),
         supabase.from('campaigns').select('instantly_campaign_id').eq('id', campaignId).single(),
       ]);
       return { lead, campaign };
     });
 
     if (!data.lead?.email) throw new Error(`Lead ${leadId} has no email`);
+    if (!data.lead?.full_name) throw new Error(`Lead ${leadId} has no name - skipping to avoid blank {{first_name}}`);
     if (!data.campaign) throw new Error(`Campaign ${campaignId} not found`);
 
-    // Add to Instantly
+    // Split full_name into first/last
+    const nameParts = data.lead.full_name.trim().split(/\s+/);
+    const firstName = nameParts[0];
+    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+
+    // Add to Instantly with all enriched data
     await step.run('add-to-instantly', () =>
       addLeadsToCampaign(data.campaign!.instantly_campaign_id, [{
         email: data.lead!.email!,
-        first_name: data.lead!.full_name?.split(' ')[0] || '',
-        variables: { lead_url: data.lead!.url || '' },
+        first_name: firstName,
+        last_name: lastName,
+        company_name: '',
+        variables: {
+          lead_url: data.lead!.url || '',
+          title: data.lead!.title || '',
+          bio: data.lead!.bio || '',
+          audience_size: String(data.lead!.total_audience || ''),
+        },
       }])
     );
 

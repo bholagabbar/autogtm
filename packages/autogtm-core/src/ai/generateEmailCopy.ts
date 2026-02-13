@@ -55,12 +55,12 @@ Tone guidelines:
 - No hype
 - No corporate jargon
 - No exclamation marks
-- No em dashes (use commas or periods)
+- ABSOLUTELY NO EM DASHES (— or --). Use commas, periods, or semicolons instead. This is critical. DO NOT LOOK LIKE AN AI.
 - No buzzwords like exciting, thrilled, empower, streamline, leverage
 - No generic flattery
 
 Formatting rules:
-- {{first_name}} is the ONLY personalization variable
+- {{firstName}} is the ONLY personalization variable
 - Plain text only
 - No HTML
 - No bullet points
@@ -71,7 +71,7 @@ Formatting rules:
 STRUCTURE FOR THE SEQUENCE:
 
 INITIAL EMAIL:
-- Start with: Hey {{first_name}},
+- Start with: Hey {{firstName}},
 - First sentence must reference something specific about the persona. It must feel researched and relevant.
 - Introduce yourself and the product in 1 to 2 tight sentences.
 - Include high-level proof points if available (user counts, time saved, measurable outcomes).
@@ -94,7 +94,7 @@ FOLLOW-UP 2 (+4 days):
 
 NEVER DO THESE:
 - "I hope this finds you well", "I'm reaching out from", "I represent"
-- Em dashes, exclamation marks
+- Em dashes (— or --) anywhere in the text. NEVER use them.
 - "exciting", "thrilled", "empower", "streamline", "leverage"
 - "{{company_name}}" variable (doesn't exist)
 - Generic flattery that doesn't match the persona
@@ -137,13 +137,12 @@ CTA: ${cta}
 Remember: the opener must be specifically relevant to this persona type. Not generic.`;
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4.1',
+    model: 'gpt-5-mini',
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
     response_format: { type: 'json_object' },
-    temperature: 0.7,
   });
 
   const content = response.choices[0]?.message?.content;

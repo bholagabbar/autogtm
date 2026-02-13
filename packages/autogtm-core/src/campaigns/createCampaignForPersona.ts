@@ -14,6 +14,14 @@ import {
 } from '../db/autogtmDbCalls';
 import type { Company, Campaign } from '../types';
 
+/** Convert plain text email body to HTML for Instantly */
+function textToHtml(text: string): string {
+  return text
+    .split('\n\n')
+    .map(para => `<div>${para.replace(/\n/g, '<br>')}</div>`)
+    .join('<div><br></div>');
+}
+
 export interface CreateCampaignForPersonaParams {
   company: Pick<Company, 'id' | 'name' | 'description' | 'target_audience'> & { sending_emails?: string[]; default_sequence_length?: number; email_prompt?: string | null };
   suggestedName: string;
@@ -40,11 +48,11 @@ export async function createCampaignForPersona(
   // 2. Create campaign in Instantly
   const campaignName = `autogtm - ${suggestedName}`;
   const sequences = [
-    { subject: emailSequence.initial.subject, body: emailSequence.initial.body },
-    { subject: emailSequence.followUp1.subject, body: emailSequence.followUp1.body, delay: emailSequence.followUp1.delayDays },
+    { subject: emailSequence.initial.subject, body: textToHtml(emailSequence.initial.body) },
+    { subject: emailSequence.followUp1.subject, body: textToHtml(emailSequence.followUp1.body), delay: emailSequence.followUp1.delayDays },
   ];
   if (emailSequence.followUp2) {
-    sequences.push({ subject: emailSequence.followUp2.subject, body: emailSequence.followUp2.body, delay: emailSequence.followUp2.delayDays });
+    sequences.push({ subject: emailSequence.followUp2.subject, body: textToHtml(emailSequence.followUp2.body), delay: emailSequence.followUp2.delayDays });
   }
   const instantlyCampaign = await createInstantlyCampaign({
     name: campaignName,
