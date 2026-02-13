@@ -469,8 +469,7 @@ export const generateQueriesOnDemand = inngest.createFunction(
 );
 
 /**
- * Daily Webset Search - Runs ONE query per company every day
- * Picks the most recent pending query and runs it
+ * Daily Webset Search (parent) - Cron fan-out: gets companies, fires one child event per company
  */
 export const dailyWebsetSearch = inngest.createFunction(
   {
@@ -481,88 +480,110 @@ export const dailyWebsetSearch = inngest.createFunction(
   async ({ step, logger }) => {
     const supabase = getSupabase();
 
-    // Get all companies with system enabled
     const companies = await step.run('get-companies', async () => {
       const { data } = await supabase.from('companies').select('id, name').eq('system_enabled', true);
       return data || [];
     });
 
-    logger.info(`Processing ${companies.length} companies`);
+    logger.info(`Fanning out to ${companies.length} companies`);
 
-    // For each company, find ONE pending query, kick off webset, and delegate to processWebsetRun
-    for (const company of companies) {
-      const queryToRun = await step.run(`find-query-for-${company.id}`, async () => {
-        const { data: queries } = await supabase
-          .from('exa_queries')
-          .select('*')
-          .eq('company_id', company.id)
-          .eq('is_active', true)
-          .eq('status', 'pending')
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (!queries || queries.length === 0) return null;
-        return queries[0];
-      });
-
-      if (!queryToRun) {
-        logger.info(`No pending queries for ${company.name}`);
-        continue;
-      }
-
-      logger.info(`Running query for ${company.name}: "${queryToRun.query}"`);
-
-      // Mark as running immediately so retries don't pick it up again
-      await step.run(`mark-running-${queryToRun.id}`, async () => {
-        await supabase.from('exa_queries').update({ status: 'running' }).eq('id', queryToRun.id);
-      });
-
-      // Create webset (fast — just starts the job on Exa's side)
-      const websetId = await step.run(`create-webset-${queryToRun.id}`, async () => {
-        const exa = getExaClient();
-        const websetParams: any = {
-          search: {
-            query: queryToRun.query,
-            count: 25,
-          },
-          enrichments: [
-            { description: 'Find the email address for this person or creator', format: 'email' },
-            { description: 'Extract the follower or subscriber count if visible', format: 'number' },
-          ],
-        };
-        if (queryToRun.criteria && queryToRun.criteria.length > 0) {
-          websetParams.search.criteria = queryToRun.criteria.map((c: string) => ({ description: c }));
-        }
-        const webset = await exa.websets.create(websetParams);
-        return webset.id;
-      });
-
-      // Create run record + dispatch to processWebsetRun (which handles polling via step.sleep)
-      await step.run(`dispatch-webset-${queryToRun.id}`, async () => {
-        const { data: websetRun } = await supabase
-          .from('webset_runs')
-          .insert({
-            query_id: queryToRun.id,
-            webset_id: websetId,
-            status: 'running',
-            items_found: 0,
-            started_at: new Date().toISOString(),
-          })
-          .select()
-          .single();
-
-        await inngest.send({
-          name: 'autogtm/webset.created',
-          data: {
-            queryId: queryToRun.id,
-            websetId,
-            websetRunId: websetRun?.id,
-          },
-        });
-      });
+    if (companies.length > 0) {
+      await step.run('fan-out', () =>
+        inngest.send(
+          companies.map((c) => ({
+            name: 'autogtm/daily-webset.run-company',
+            data: { companyId: c.id, companyName: c.name },
+          }))
+        )
+      );
     }
 
     return { companiesProcessed: companies.length };
+  }
+);
+
+/**
+ * Run company webset search (child) - One query per company, no retries to avoid burning Exa credits
+ */
+export const runCompanyWebsetSearch = inngest.createFunction(
+  {
+    id: 'run-company-webset-search',
+    name: 'Run Company Webset Search',
+    retries: 0,
+  },
+  { event: 'autogtm/daily-webset.run-company' },
+  async ({ event, step, logger }) => {
+    const { companyId, companyName } = event.data;
+    const supabase = getSupabase();
+
+    const queryToRun = await step.run('find-query', async () => {
+      const { data: queries } = await supabase
+        .from('exa_queries')
+        .select('*')
+        .eq('company_id', companyId)
+        .eq('is_active', true)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (!queries || queries.length === 0) return null;
+      return queries[0];
+    });
+
+    if (!queryToRun) {
+      logger.info(`No pending queries for ${companyName ?? companyId}`);
+      return { skipped: true };
+    }
+
+    logger.info(`Running query for ${companyName ?? companyId}: "${queryToRun.query}"`);
+
+    await step.run('mark-running', async () => {
+      await supabase.from('exa_queries').update({ status: 'running' }).eq('id', queryToRun.id);
+    });
+
+    const websetId = await step.run('create-webset', async () => {
+      const exa = getExaClient();
+      const websetParams: any = {
+        search: {
+          query: queryToRun.query,
+          count: 25,
+        },
+        enrichments: [
+          { description: 'Find the email address for this person or creator', format: 'email' },
+          { description: 'Extract the follower or subscriber count if visible', format: 'number' },
+        ],
+      };
+      if (queryToRun.criteria && queryToRun.criteria.length > 0) {
+        websetParams.search.criteria = queryToRun.criteria.map((c: string) => ({ description: c }));
+      }
+      const webset = await exa.websets.create(websetParams);
+      return webset.id;
+    });
+
+    await step.run('dispatch-webset', async () => {
+      const { data: websetRun } = await supabase
+        .from('webset_runs')
+        .insert({
+          query_id: queryToRun.id,
+          webset_id: websetId,
+          status: 'running',
+          items_found: 0,
+          started_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      await inngest.send({
+        name: 'autogtm/webset.created',
+        data: {
+          queryId: queryToRun.id,
+          websetId,
+          websetRunId: websetRun?.id,
+        },
+      });
+    });
+
+    return { companyId, queryId: queryToRun.id, websetId };
   }
 );
 
@@ -971,6 +992,7 @@ export const functions = [
   dailyQueryGeneration,
   generateQueriesOnDemand,
   dailyWebsetSearch,
+  runCompanyWebsetSearch,
   dailyDigest,
   syncCampaignAnalytics,
 ];
