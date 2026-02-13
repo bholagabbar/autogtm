@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
 
     const response = await openai.responses.create({
       model: 'gpt-4o',
-      tools: [{ type: 'web_search' as const }],
+      tools: [{ type: 'web_search_preview' as const }],
       input: `Visit and analyze the company website at ${url}.
 
 Based on what you find, return a JSON object with exactly these fields:
