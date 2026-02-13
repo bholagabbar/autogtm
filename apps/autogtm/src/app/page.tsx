@@ -68,7 +68,7 @@ export default function LandingPage() {
             <span className="text-indigo-600">on autopilot</span>
           </h1>
           <p className="mt-6 text-lg sm:text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
-            Describe your target audience in plain English. autogtm finds leads, scores them with AI, writes personalized emails, and sends campaigns every day, automatically.
+            Describe your target audience in plain English. autogtm discovers leads daily, enriches them with AI, creates tailored email campaigns, and sends via Instantly. System on, autopilot on, you sleep.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
@@ -131,26 +131,26 @@ export default function LandingPage() {
               {
                 step: '01',
                 icon: Target,
-                title: 'Define your audience',
-                desc: 'Write targeting instructions in plain English. Update them anytime and new queries are generated automatically.',
+                title: 'You add context',
+                desc: 'Tell the AI who you want to reach in plain English. "Find podcast hosts in the acting space" or "Look for fitness coaches on TikTok with 10k+ followers."',
               },
               {
                 step: '02',
                 icon: Search,
-                title: 'AI discovers leads',
-                desc: 'Exa.ai websets search the internet for people matching your description. Dozens of new leads every day.',
+                title: 'AI generates searches and finds leads',
+                desc: 'Every morning at 8:30 AM, AI turns your instructions into targeted searches. At 9 AM, those searches run and new leads are discovered automatically.',
               },
               {
                 step: '03',
                 icon: Brain,
-                title: 'AI enriches & scores',
-                desc: 'Every lead gets a bio, social profiles, audience size, expertise tags, and a 1-10 fit score with reasoning.',
+                title: 'AI enriches, scores, and matches',
+                desc: 'Each lead is enriched with a bio, social links, audience size, and a 1-10 fit score. AI then picks or creates the right campaign with a personalized email sequence.',
               },
               {
                 step: '04',
                 icon: Mail,
-                title: 'Campaigns run automatically',
-                desc: 'AI writes personalized email sequences. High-fit leads are routed to Instantly.ai campaigns and sent.',
+                title: 'You approve, or go full autopilot',
+                desc: 'Review leads and click "Add to Campaign", or turn Autopilot on and high-fit leads go straight into Instantly campaigns automatically.',
               },
             ].map((item) => (
               <div key={item.step} className="flex gap-5">
@@ -184,27 +184,27 @@ export default function LandingPage() {
               {
                 icon: Clock,
                 title: 'Runs daily on schedule',
-                desc: 'Queries run at 8:30am, leads are enriched on arrival, analytics sync hourly, digest sent at 6pm.',
+                desc: '8:30 AM: generate queries. 9 AM: run searches and enrich leads. Hourly: sync campaign analytics. 6 PM: daily digest email.',
               },
               {
                 icon: Brain,
-                title: 'AI-written email copy',
-                desc: 'Personalized multi-step sequences generated per campaign persona. No templates, no guesswork.',
+                title: 'AI-written email sequences',
+                desc: 'Personalized multi-step sequences generated per campaign persona. Founder-led tone, no templates, no generic copy.',
               },
               {
                 icon: Zap,
-                title: 'Auto-add mode',
-                desc: 'Set a fit score threshold and high-quality leads are automatically added to campaigns. Zero manual review.',
+                title: 'System ON/OFF + Autopilot',
+                desc: 'Master switch controls the entire pipeline. Autopilot auto-adds high-fit leads to campaigns. Both toggles with confirmation dialogs.',
               },
               {
                 icon: Search,
                 title: 'Exploration mode',
-                desc: 'When no new instructions exist, AI generates creative queries to keep your pipeline full.',
+                desc: 'When no new instructions exist, AI generates creative queries to keep discovering fresh leads for your pipeline.',
               },
               {
                 icon: BarChart3,
                 title: 'Analytics & digest',
-                desc: 'Opens, replies, and bounces synced from Instantly. Daily summary email with everything that happened.',
+                desc: 'Opens, replies, and bounces synced from Instantly. Daily summary email with leads found and campaign performance.',
               },
               {
                 icon: Target,
@@ -229,7 +229,7 @@ export default function LandingPage() {
             Why we built this
           </h2>
           <p className="mt-5 text-gray-500 leading-relaxed">
-            Solo teams and bootstrappers often need to test several GTM motions at once. Finding leads, writing copy, managing campaigns across tools, doing it all manually is painful and slow. We stitched together the best tools in the space and put them on autopilot so the highest-quality leads are always at your fingertips.
+            Solo founders and small teams need outbound that runs without babysitting. Finding leads, enriching them, writing copy, managing campaigns across tools, it is painful and slow when done manually. autogtm connects Exa, OpenAI, and Instantly into one pipeline that runs every day on its own, so you wake up to new leads already in campaigns.
           </p>
           <div className="mt-8">
             <button

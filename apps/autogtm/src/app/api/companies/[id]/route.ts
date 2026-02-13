@@ -56,6 +56,7 @@ export async function PATCH(
     if (body.email_prompt !== undefined) updateData.email_prompt = body.email_prompt;
     if (body.auto_add_enabled !== undefined) updateData.auto_add_enabled = body.auto_add_enabled;
     if (body.auto_add_min_fit_score !== undefined) updateData.auto_add_min_fit_score = body.auto_add_min_fit_score;
+    if (body.system_enabled !== undefined) updateData.system_enabled = body.system_enabled;
 
     const { data: company, error } = await supabase
       .from('companies')
