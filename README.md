@@ -13,6 +13,8 @@
   Describe your target audience in plain English. AutoGTM discovers leads daily, enriches them with AI, creates tailored email campaigns, and sends via Instantly. System on, autopilot on, you sleep.
 </p>
 
+<p align="center"><sub>Licensed under <a href="LICENSE">AGPL-3.0</a></sub></p>
+
 ---
 
 ## How it works
