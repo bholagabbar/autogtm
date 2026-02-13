@@ -28,6 +28,17 @@ import { createClient } from '@supabase/supabase-js';
 
 const getResend = () => new Resend(process.env.RESEND_API_KEY);
 
+const getSupabase = () => createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+/** Check if system is enabled for a company. Returns false if disabled. */
+async function isSystemEnabled(supabase: any, companyId: string): Promise<boolean> {
+  const { data } = await supabase.from('companies').select('system_enabled').eq('id', companyId).single();
+  return data?.system_enabled === true;
+}
+
 /**
  * Extract email from Exa enrichment data (handles multiple formats)
  */
@@ -57,11 +68,6 @@ function extractEmailFromEnrichments(enrichments: any): string | null {
 
   return null;
 }
-
-const getSupabase = () => createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 /**
  * Process Webset Run - Polls webset status and extracts leads when done
@@ -255,11 +261,12 @@ export const dailyQueryGeneration = inngest.createFunction(
   async ({ step, logger }) => {
     const supabase = getSupabase();
 
-    // Get all companies
+    // Get all companies with system enabled
     const companies = await step.run('get-companies', async () => {
       const { data } = await supabase
         .from('companies')
-        .select('id, name, website, description, target_audience, agent_notes');
+        .select('id, name, website, description, target_audience, agent_notes')
+        .eq('system_enabled', true);
       return data || [];
     });
 
@@ -400,6 +407,12 @@ export const generateQueriesOnDemand = inngest.createFunction(
     const { companyId } = event.data;
     const supabase = getSupabase();
 
+    const systemOn = await step.run('check-system', () => isSystemEnabled(supabase, companyId));
+    if (!systemOn) {
+      logger.info(`System disabled for company ${companyId}, skipping query generation`);
+      return { skipped: true };
+    }
+
     const company = await step.run('get-company', async () => {
       const { data } = await supabase
         .from('companies')
@@ -473,9 +486,9 @@ export const dailyWebsetSearch = inngest.createFunction(
   async ({ step, logger }) => {
     const supabase = getSupabase();
 
-    // Get all companies
+    // Get all companies with system enabled
     const companies = await step.run('get-companies', async () => {
-      const { data } = await supabase.from('companies').select('id, name');
+      const { data } = await supabase.from('companies').select('id, name').eq('system_enabled', true);
       return data || [];
     });
 
@@ -727,6 +740,13 @@ export const enrichLeadJob = inngest.createFunction(
   async ({ event, step, logger }) => {
     const { leadId, leadUrl, leadEmail, leadName, companyId } = event.data;
     const supabase = getSupabase();
+
+    // Check system enabled
+    const systemOn = await step.run('check-system', () => isSystemEnabled(supabase, companyId));
+    if (!systemOn) {
+      logger.info(`System disabled for company ${companyId}, skipping enrichment`);
+      return { skipped: true };
+    }
 
     logger.info(`Enriching lead ${leadId}`);
 

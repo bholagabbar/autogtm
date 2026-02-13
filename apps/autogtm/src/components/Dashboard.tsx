@@ -27,6 +27,7 @@ import {
   Sparkles,
   HelpCircle,
   Zap,
+  Power,
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -122,6 +123,7 @@ interface Company {
   email_prompt: string | null;
   auto_add_enabled: boolean;
   auto_add_min_fit_score: number;
+  system_enabled: boolean;
 }
 
 interface InstantlyAccount {
@@ -592,7 +594,37 @@ export function Dashboard({ userEmail }: DashboardProps) {
                 </span>
               </button>
             ))}
-            <div className="ml-auto pr-4">
+            <div className="ml-auto pr-4 flex items-center gap-3">
+              <button
+                onClick={async () => {
+                  if (!company || !companyId) return;
+                  const newVal = !company.system_enabled;
+                  const msg = newVal
+                    ? 'Turn the system ON? This will enable daily searches, lead enrichment, and campaign creation.'
+                    : 'Turn the system OFF? All automated processes (searches, enrichment, campaign routing) will stop.';
+                  if (!confirm(msg)) return;
+                  try {
+                    const res = await fetch(`/api/companies/${companyId}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ system_enabled: newVal }),
+                    });
+                    if (res.ok) {
+                      setCompany({ ...company, system_enabled: newVal });
+                      toast({ title: newVal ? 'System turned ON' : 'System turned OFF', description: newVal ? 'Automated searches, enrichment, and campaigns are now active.' : 'All automated processes have been paused.' });
+                    }
+                  } catch {}
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                  company?.system_enabled
+                    ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                    : 'bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600'
+                }`}
+                title={company?.system_enabled ? 'System is active. Click to pause all automation.' : 'System is paused. Click to activate.'}
+              >
+                <Power className={`h-3 w-3 ${company?.system_enabled ? 'text-green-600' : ''}`} />
+                {company?.system_enabled ? 'System ON' : 'System OFF'}
+              </button>
               <button
                 onClick={() => setGuideOpen(true)}
                 className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
@@ -934,13 +966,20 @@ export function Dashboard({ userEmail }: DashboardProps) {
                             onClick={async () => {
                               if (!company || !companyId) return;
                               const newVal = !company.auto_add_enabled;
+                              const msg = newVal
+                                ? `Turn Autopilot ON? Leads with fit score ${company.auto_add_min_fit_score || 7}+ will be automatically added to campaigns.`
+                                : 'Turn Autopilot OFF? You will need to manually review and add leads to campaigns.';
+                              if (!confirm(msg)) return;
                               try {
                                 const res = await fetch(`/api/companies/${companyId}`, {
                                   method: 'PATCH',
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({ auto_add_enabled: newVal }),
                                 });
-                                if (res.ok) setCompany({ ...company, auto_add_enabled: newVal });
+                                if (res.ok) {
+                                  setCompany({ ...company, auto_add_enabled: newVal });
+                                  toast({ title: newVal ? 'Autopilot ON' : 'Autopilot OFF', description: newVal ? `Leads with fit score ${company.auto_add_min_fit_score || 7}+ will be auto-added to campaigns.` : 'Manual review mode enabled.' });
+                                }
                               } catch {}
                             }}
                             className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors ${
@@ -1035,12 +1074,26 @@ export function Dashboard({ userEmail }: DashboardProps) {
 
                                   {/* Right: Campaign suggestion / status */}
                                   <div className="shrink-0 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                    {lead.campaign_status === 'routed' ? (
-                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-green-50 text-green-700">
-                                        <CheckCircle2 className="h-3 w-3" />
-                                        In Campaign
-                                      </span>
-                                    ) : lead.campaign_status === 'pending' ? (
+                                    {lead.campaign_status === 'routed' ? (() => {
+                                      const routedCampaign = lead.campaign_id ? campaigns.find(c => c.id === lead.campaign_id) : null;
+                                      return (
+                                        <div className="flex items-center gap-2">
+                                          {routedCampaign && (
+                                            <button
+                                              onClick={() => openCampaignPreview(routedCampaign.id)}
+                                              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium truncate max-w-[180px] transition-colors"
+                                              title={routedCampaign.name}
+                                            >
+                                              {routedCampaign.name}
+                                            </button>
+                                          )}
+                                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-green-50 text-green-700">
+                                            <CheckCircle2 className="h-3 w-3" />
+                                            Added
+                                          </span>
+                                        </div>
+                                      );
+                                    })() : lead.campaign_status === 'pending' ? (
                                       <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-amber-50 text-amber-600">
                                         <Loader2 className="h-3 w-3 animate-spin" />
                                         Routing
@@ -1826,6 +1879,38 @@ export function Dashboard({ userEmail }: DashboardProps) {
                     <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">You</span>
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5">Preview email sequences, then click "Add to Campaign" to confirm. Leads go into Instantly and emails send on your schedule. You stay in control.</p>
+                </div>
+              </div>
+
+              {/* Controls section */}
+              <div className="mt-4 pt-4 border-t border-gray-200 space-y-3">
+                <p className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Controls</p>
+
+                <div className="flex gap-3 p-3 rounded-lg border border-green-200 bg-green-50/30">
+                  <Power className="shrink-0 h-5 w-5 text-green-600 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">System ON / OFF</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Master switch. When OFF, nothing runs: no searches, no enrichment, no campaign creation. Turn ON to activate all automated steps.</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 p-3 rounded-lg border border-amber-200 bg-amber-50/30">
+                  <Zap className="shrink-0 h-5 w-5 text-amber-600 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">Autopilot ON / OFF</p>
+                    <p className="text-xs text-gray-500 mt-0.5">When ON, high-fit leads (score 7+) are automatically added to campaigns. When OFF, you review and click "Add to Campaign" manually.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Schedule section */}
+              <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
+                <p className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Daily schedule</p>
+                <div className="text-xs text-gray-500 space-y-1.5">
+                  <div className="flex gap-2"><span className="font-mono text-gray-400 w-16 shrink-0">8:30 AM</span><span>Generate new search queries from your instructions</span></div>
+                  <div className="flex gap-2"><span className="font-mono text-gray-400 w-16 shrink-0">9:00 AM</span><span>Run searches, discover leads, enrich and score them</span></div>
+                  <div className="flex gap-2"><span className="font-mono text-gray-400 w-16 shrink-0">Hourly</span><span>Sync campaign analytics from Instantly</span></div>
+                  <div className="flex gap-2"><span className="font-mono text-gray-400 w-16 shrink-0">6:00 PM</span><span>Send daily digest email with summary</span></div>
                 </div>
               </div>
             </div>
