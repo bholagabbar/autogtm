@@ -590,7 +590,7 @@ export function Dashboard({ userEmail }: DashboardProps) {
                 <span className={`ml-1 px-2 py-0.5 rounded-full text-xs ${
                   activeTab === tab.id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'
                 }`}>
-                  {tab.count}
+                  {loading ? ' ' : tab.count}
                 </span>
               </button>
             ))}
@@ -615,15 +615,23 @@ export function Dashboard({ userEmail }: DashboardProps) {
                     }
                   } catch {}
                 }}
+                disabled={!company}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
-                  company?.system_enabled
-                    ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                    : 'bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600'
+                  !company
+                    ? 'bg-gray-100 text-gray-400'
+                    : company.system_enabled
+                      ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                      : 'bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600'
                 }`}
-                title={company?.system_enabled ? 'System is active. Click to pause all automation.' : 'System is paused. Click to activate.'}
+                title={!company ? 'Loading...' : company.system_enabled ? 'System is active. Click to pause all automation.' : 'System is paused. Click to activate.'}
               >
-                <Power className={`h-3 w-3 ${company?.system_enabled ? 'text-green-600' : ''}`} />
-                {company?.system_enabled ? 'System ON' : 'System OFF'}
+                {!company ? (
+                  <><Loader2 className="h-3 w-3 animate-spin" /> Loading</>
+                ) : company.system_enabled ? (
+                  <><Power className="h-3 w-3 text-green-600" /> System ON</>
+                ) : (
+                  <><Power className="h-3 w-3" /> System OFF</>
+                )}
               </button>
               <button
                 onClick={() => setGuideOpen(true)}
