@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  Describe your target audience in plain English. autogtm discovers leads daily, enriches them with AI, creates tailored email campaigns, and sends via Instantly. System on, autopilot on, you sleep.
+  Describe your target audience in plain English. AutoGTM discovers leads daily, enriches them with AI, creates tailored email campaigns, and sends via Instantly. System on, autopilot on, you sleep.
 </p>
 
 ---

@@ -168,7 +168,7 @@ export default function LandingPage() {
             <span className="bg-gradient-to-r from-indigo-600 to-indigo-500 bg-clip-text text-transparent">on autopilot</span>
           </h1>
           <p className="mt-6 text-lg sm:text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
-            Describe your target audience in plain English. autogtm discovers leads daily, enriches them with AI, creates tailored email campaigns, and sends via Instantly. Self-host it or let us run it for you.
+            Describe your target audience in plain English. AutoGTM discovers leads daily, enriches them with AI, creates tailored email campaigns, and sends via Instantly. Self-host it or let us run it for you.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
