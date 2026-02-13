@@ -159,7 +159,7 @@ export function Dashboard({ userEmail }: DashboardProps) {
   const [savingSendingEmails, setSavingSendingEmails] = useState(false);
   const [sendingAccountsOpen, setSendingAccountsOpen] = useState(false);
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
-  const [leadFilter, setLeadFilter] = useState<'all' | 'suggested' | 'routed' | 'pending' | 'skipped'>('suggested');
+  const [leadFilter, setLeadFilter] = useState<'all' | 'suggested' | 'routed' | 'pending' | 'skipped'>('all');
   const [previewCampaign, setPreviewCampaign] = useState<{ campaign: Campaign; emails: CampaignEmail[] } | null>(null);
   const [loadingCampaignPreview, setLoadingCampaignPreview] = useState(false);
   const [promptOpen, setPromptOpen] = useState(false);
@@ -223,7 +223,7 @@ export function Dashboard({ userEmail }: DashboardProps) {
         const data = await leadsRes.json();
         const loadedLeads = data.leads || [];
         setLeads(loadedLeads);
-        if (leadFilter === 'suggested' && !loadedLeads.some((l: Lead) => l.suggested_campaign_id && l.campaign_status !== 'routed')) {
+        if (leadFilter !== 'all' && leadFilter === 'suggested' && !loadedLeads.some((l: Lead) => l.suggested_campaign_id && l.campaign_status !== 'routed')) {
           setLeadFilter('all');
         }
       }
@@ -930,9 +930,8 @@ export function Dashboard({ userEmail }: DashboardProps) {
                     const order = (l: typeof a) =>
                       l.suggested_campaign_id && l.campaign_status !== 'routed' ? 0 :
                       l.campaign_status === 'routed' ? 1 :
-                      l.enrichment_status === 'enriched' ? 2 :
                       l.enrichment_status === 'enriching' ? 3 :
-                      l.campaign_status === 'skipped' ? 5 : 4;
+                      l.campaign_status === 'skipped' ? 4 : 2;
                     return order(a) - order(b);
                   });
                   const displayLeads = leadFilter === 'all' ? sortedAll :
