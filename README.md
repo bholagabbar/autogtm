@@ -1,56 +1,67 @@
-# autogtm
+<p align="center">
+  <img src="apps/autogtm/src/app/icon.svg" width="64" height="64" alt="autogtm logo" />
+</p>
 
-**Automated email outbound on autopilot.**
+<h1 align="center">autogtm</h1>
 
-Describe your target audience in plain English. autogtm uses AI to find leads across the web, enrich them with fit scores, write personalized email sequences, and run campaigns -- all on autopilot, every day.
+<p align="center">
+  <strong>Cold outbound on autopilot.</strong><br/>
+  Open-source go-to-market engine powered by AI.
+</p>
+
+<p align="center">
+  Describe your target audience in plain English. autogtm discovers leads daily, enriches them with AI, creates tailored email campaigns, and sends via Instantly. System on, autopilot on, you sleep.
+</p>
 
 ---
 
-## What It Does
-
-autogtm is an open-source go-to-market engine that automates the entire cold outbound pipeline:
-
-1. You describe your ideal customers (e.g. "acting coaches with 5-20k followers on Instagram")
-2. AI generates targeted search queries from your instructions
-3. [Exa.ai](https://exa.ai) discovers matching leads across the web
-4. Each lead is AI-enriched with bio, social profiles, audience size, and a 1-10 fit score
-5. AI writes personalized email sequences tailored to each persona
-6. Campaigns are created and sent through [Instantly.ai](https://instantly.ai)
-7. Analytics (opens, replies) are synced back automatically
-
-The entire pipeline runs daily on a schedule. New instructions you add are picked up the next morning. High-fit leads can be auto-added to campaigns without manual review.
-
-## How It Works
+## How it works
 
 ```
-Instructions              Search Queries             Lead Discovery
-"Find acting        -->   AI generates Exa     -->   Exa Websets find
- coaches in LA"           search queries              matching people
-                                |
-                                v
-Campaign Analytics  <--   Email Campaigns      <--   AI Enrichment
-Opens, replies            Instantly.ai sends         Bio, fit score,
-synced hourly             personalized emails        email extraction
+┌─────────────┐     ┌──────────────┐     ┌────────────────┐     ┌──────────────┐
+│  You add     │     │  AI generates │     │  Exa.ai finds  │     │  AI enriches │
+│  context     │ ──▶ │  search       │ ──▶ │  matching      │ ──▶ │  bio, score, │
+│  (plain      │     │  queries      │     │  leads daily   │     │  email, fit  │
+│  English)    │     │  (8:30 AM)    │     │  (9:00 AM)     │     │              │
+└─────────────┘     └──────────────┘     └────────────────┘     └──────┬───────┘
+                                                                       │
+                                                                       ▼
+┌─────────────┐     ┌──────────────┐     ┌────────────────┐     ┌──────────────┐
+│  Analytics   │     │  Instantly    │     │  You approve   │     │  AI writes   │
+│  sync hourly │ ◀── │  sends on    │ ◀── │  or autopilot  │ ◀── │  personalized│
+│  + digest    │     │  schedule    │     │  auto-adds     │     │  email copy  │
+│  at 6 PM     │     │              │     │                │     │              │
+└─────────────┘     └──────────────┘     └────────────────┘     └──────────────┘
 ```
 
-**Daily schedule (all automated via Inngest):**
-- 8:30 AM -- Generate new search queries from your latest instructions
-- 9:00 AM -- Run searches and discover leads
-- Ongoing -- Enrich leads as they arrive, route to campaigns
-- Every hour -- Sync campaign analytics from Instantly
-- 6:00 PM -- Send daily digest email with summary
+### Controls
+
+| Toggle | What it does |
+|---|---|
+| **System ON/OFF** | Master switch. When OFF, nothing runs. No searches, no enrichment, no campaigns. |
+| **Autopilot ON/OFF** | When ON, high-fit leads (score 7+) are auto-added to campaigns. When OFF, you review manually. |
+
+### Daily schedule
+
+| Time | What happens |
+|---|---|
+| 8:30 AM | Generate search queries from your instructions |
+| 9:00 AM | Run searches, discover and enrich leads |
+| Hourly | Sync campaign analytics from Instantly |
+| 6:00 PM | Send daily digest email |
+
+---
 
 ## Features
 
-- **AI lead discovery** -- Exa.ai websets find people matching your natural-language description
-- **AI enrichment** -- Each lead gets a bio, social links, audience size, expertise tags, and a 1-10 fit score with reasoning
-- **AI email copywriting** -- Personalized multi-step email sequences generated per campaign persona
-- **Campaign management** -- Creates and manages campaigns in Instantly.ai, tracks performance
-- **Auto-add mode** -- Automatically routes high-fit leads (above your threshold) to campaigns without manual review
-- **Instruction-driven** -- Add new targeting instructions anytime; queries are generated from them automatically
-- **Exploration mode** -- When no new instructions exist, AI generates creative queries to keep the pipeline fresh
-- **Daily digest** -- Summary email with leads found, emails sent, opens, and replies
-- **Multi-company** -- Manage multiple company profiles from a single dashboard
+- **AI lead discovery** — Exa.ai websets find people matching your natural-language description
+- **AI enrichment** — Bio, social links, audience size, expertise tags, and a 1-10 fit score with reasoning
+- **AI email copywriting** — Personalized multi-step sequences generated per campaign persona
+- **Campaign management** — Creates and manages campaigns in Instantly.ai, tracks performance
+- **System + Autopilot toggles** — Master switch for the pipeline, separate toggle for auto-routing
+- **Exploration mode** — When no new instructions exist, AI generates creative queries to keep the pipeline fresh
+- **Daily digest** — Summary email with leads found, emails sent, opens, and replies
+- **Multi-company** — Manage multiple company profiles from a single dashboard
 
 ## Tech Stack
 
@@ -62,10 +73,11 @@ synced hourly             personalized emails        email extraction
 | Background Jobs | [Inngest](https://inngest.com) |
 | Lead Discovery | [Exa.ai](https://exa.ai) (Websets API) |
 | Email Sending | [Instantly.ai](https://instantly.ai) |
-| AI | [OpenAI](https://openai.com) (GPT-4.1) |
+| AI | [OpenAI](https://openai.com) (GPT-4.1 / GPT-5-mini) |
 | Digest Emails | [Resend](https://resend.com) |
 
-## Project Structure
+<details>
+<summary><strong>Project Structure</strong></summary>
 
 ```
 apps/autogtm/              Next.js app (frontend + API routes)
@@ -84,54 +96,70 @@ packages/autogtm-core/     Core logic (shared, framework-agnostic)
     types/                 TypeScript types and Zod schemas
 ```
 
-## Prerequisites
+</details>
 
-You will need accounts with:
+<details>
+<summary><strong>Database Schema</strong></summary>
 
-- [Supabase](https://supabase.com) -- database and authentication
-- [Exa.ai](https://exa.ai) -- lead discovery via Websets API
-- [Instantly.ai](https://instantly.ai) -- email campaign sending
-- [OpenAI](https://platform.openai.com) -- AI enrichment and generation
-- [Inngest](https://inngest.com) -- background job scheduling
-- [Resend](https://resend.com) -- daily digest emails (optional)
+The [`schema.sql`](./schema.sql) file creates these tables:
 
-And locally:
+| Table | Purpose |
+|---|---|
+| `companies` | Company profiles with targeting config, system/autopilot flags |
+| `company_updates` | Natural-language instructions that drive query generation |
+| `exa_queries` | AI-generated search queries linked to instructions |
+| `webset_runs` | Tracks Exa webset execution and results |
+| `leads` | Discovered leads with enrichment data, fit scores, and campaign routing |
+| `campaigns` | Email campaigns synced with Instantly.ai |
+| `campaign_emails` | Email copy (subject + body) for each campaign step |
+| `daily_digests` | Daily performance summaries |
+| `allowed_users` | Email whitelist for signup access |
 
-- Node.js 18+
-- npm
+</details>
 
-## Setup
+---
 
-### 1. Clone the repository
+## Getting Started
+
+### Prerequisites
+
+Accounts needed:
+
+- [Supabase](https://supabase.com) — database and authentication
+- [Exa.ai](https://exa.ai) — lead discovery via Websets API
+- [Instantly.ai](https://instantly.ai) — email campaign sending
+- [OpenAI](https://platform.openai.com) — AI enrichment and generation
+- [Inngest](https://inngest.com) — background job scheduling
+- [Resend](https://resend.com) — daily digest emails (optional)
+
+Locally: Node.js 18+ and npm.
+
+### Setup
 
 ```bash
+# Clone and install
 git clone https://github.com/your-org/autogtm.git
 cd autogtm
-```
-
-### 2. Install dependencies
-
-```bash
 npm install
+
+# Configure environment
+cp apps/autogtm/.env.example apps/autogtm/.env.local
+# Fill in your API keys (see table below)
+
+# Run
+npm run dev
 ```
 
-### 3. Set up Supabase
+The app runs at [http://localhost:3200](http://localhost:3200).
 
-Create a new Supabase project at [supabase.com](https://supabase.com). Then run the schema in the SQL Editor:
-
-- Open your project dashboard
-- Go to **SQL Editor**
-- Paste the contents of [`schema.sql`](./schema.sql) and run it
-
-This creates all required tables, indexes, RLS policies, and helper functions.
-
-### 4. Configure environment variables
+For background jobs, run the Inngest dev server in a separate terminal:
 
 ```bash
-cp apps/autogtm/.env.example apps/autogtm/.env.local
+npx inngest-cli@latest dev
 ```
 
-Fill in your keys:
+<details>
+<summary><strong>Environment Variables</strong></summary>
 
 | Variable | Required | Where to get it |
 |---|---|---|
@@ -151,48 +179,27 @@ Fill in your keys:
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | No | Google Cloud Console, for Google OAuth login |
 | `REDIS_URL` | No | Redis connection string, for rate limiting |
 
-### 5. Run the dev server
+</details>
 
-```bash
-npm run dev
-```
+<details>
+<summary><strong>Supabase Setup</strong></summary>
 
-The app runs at [http://localhost:3200](http://localhost:3200).
+Create a new Supabase project at [supabase.com](https://supabase.com), then:
 
-### 6. Set up Inngest
+1. Open your project dashboard
+2. Go to **SQL Editor**
+3. Paste the contents of [`schema.sql`](./schema.sql) and run it
 
-For local development, run the [Inngest Dev Server](https://www.inngest.com/docs/local-development):
+This creates all required tables, indexes, RLS policies, and helper functions.
 
-```bash
-npx inngest-cli@latest dev
-```
-
-This gives you a local dashboard at `http://localhost:8288` where you can see and trigger background jobs.
-
-For production, deploy to [Inngest Cloud](https://inngest.com) and set `INNGEST_SIGNING_KEY` and `INNGEST_EVENT_KEY` from your Inngest app.
-
-## Database Schema
-
-The [`schema.sql`](./schema.sql) file creates these tables:
-
-| Table | Purpose |
-|---|---|
-| `companies` | Company profiles with targeting config and auto-add settings |
-| `company_updates` | Natural-language instructions that drive query generation |
-| `exa_queries` | AI-generated search queries linked to instructions |
-| `webset_runs` | Tracks Exa webset execution and results |
-| `leads` | Discovered leads with enrichment data, fit scores, and campaign routing |
-| `campaigns` | Email campaigns synced with Instantly.ai |
-| `campaign_emails` | Email copy (subject + body) for each campaign step |
-| `daily_digests` | Daily performance summaries |
-| `allowed_users` | Email whitelist for signup access |
+</details>
 
 ## Deployment
 
 autogtm is a standard Next.js app. Deploy to any platform that supports it:
 
-- **Vercel** -- recommended, zero-config Next.js deployment
-- **Netlify**, **Railway**, **Fly.io** -- all work with Next.js
+- **Vercel** — recommended, zero-config Next.js deployment
+- **Netlify**, **Railway**, **Fly.io** — all work with Next.js
 
 Make sure to:
 1. Set all environment variables in your hosting platform

@@ -203,8 +203,8 @@ export default function LandingPage() {
               },
               {
                 icon: BarChart3,
-                title: 'Analytics & digest',
-                desc: 'Opens, replies, and bounces synced from Instantly. Daily summary email with leads found and campaign performance.',
+                title: 'Campaign intelligence',
+                desc: 'AI picks or creates the right campaign for each lead. Opens, replies, and bounces sync back from Instantly hourly.',
               },
               {
                 icon: Target,
