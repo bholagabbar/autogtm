@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Search, Brain, Mail, BarChart3, Zap, Clock, Target, X } from 'lucide-react';
+import { ArrowRight, Search, Brain, Mail, BarChart3, Zap, Clock, Target, X, Github } from 'lucide-react';
 
 export default function LandingPage() {
   const [showContact, setShowContact] = useState(false);
@@ -39,6 +39,15 @@ export default function LandingPage() {
             <span className="font-black text-xl tracking-tight text-white bg-indigo-600 px-1.5 py-0.5 rounded-md ml-0.5">gtm</span>
           </div>
           <div className="flex items-center gap-3">
+            <a
+              href="https://github.com/bholagabbar/autogtm"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <Github className="h-4 w-4" />
+              Star
+            </a>
             <Link
               href="/login"
               className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors px-4 py-2"
@@ -49,7 +58,7 @@ export default function LandingPage() {
               onClick={() => { setShowContact(true); setSent(false); }}
               className="text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors px-4 py-2 rounded-lg"
             >
-              Request invite
+              Request cloud access
             </button>
           </div>
         </div>
@@ -60,7 +69,7 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 text-sm font-medium px-4 py-1.5 rounded-full mb-8">
             <Zap className="h-3.5 w-3.5" />
-            Open-source go-to-market engine
+            100% open-source
           </div>
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-gray-950 leading-[1.08]">
             Cold outbound
@@ -68,21 +77,24 @@ export default function LandingPage() {
             <span className="text-indigo-600">on autopilot</span>
           </h1>
           <p className="mt-6 text-lg sm:text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
-            Describe your target audience in plain English. autogtm discovers leads daily, enriches them with AI, creates tailored email campaigns, and sends via Instantly. System on, autopilot on, you sleep.
+            Describe your target audience in plain English. autogtm discovers leads daily, enriches them with AI, creates tailored email campaigns, and sends via Instantly. Self-host it or let us run it for you.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
               onClick={() => { setShowContact(true); setSent(false); }}
               className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-3 rounded-lg transition-colors text-base"
             >
-              Request invite
+              Request cloud access
               <ArrowRight className="h-4 w-4" />
             </button>
             <a
-              href="#how-it-works"
-              className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 font-medium px-6 py-3 transition-colors text-base"
+              href="https://github.com/bholagabbar/autogtm"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white font-medium px-6 py-3 rounded-lg transition-colors text-base"
             >
-              See how it works
+              <Github className="h-4 w-4" />
+              View on GitHub
             </a>
           </div>
         </div>
@@ -222,6 +234,38 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Powered By */}
+      <section className="py-16 px-6">
+        <div className="max-w-5xl mx-auto">
+          <p className="text-center text-sm font-medium text-gray-400 uppercase tracking-wider mb-8">
+            Powered by
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-x-12 gap-y-6">
+            {[
+              { name: 'Exa.ai', href: 'https://exa.ai', color: '#3B82F6' },
+              { name: 'OpenAI', href: 'https://openai.com', color: '#10A37F' },
+              { name: 'Instantly.ai', href: 'https://instantly.ai', color: '#6366F1' },
+              { name: 'Supabase', href: 'https://supabase.com', color: '#3ECF8E' },
+              { name: 'Inngest', href: 'https://inngest.com', color: '#8B5CF6' },
+              { name: 'Resend', href: 'https://resend.com', color: '#000000' },
+            ].map((brand) => (
+              <a
+                key={brand.name}
+                href={brand.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-base font-semibold text-gray-300 transition-colors duration-200"
+                style={{ ['--brand-color' as string]: brand.color }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = brand.color)}
+                onMouseLeave={(e) => (e.currentTarget.style.color = '')}
+              >
+                {brand.name}
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Why */}
       <section className="py-24 px-6 bg-gray-50">
         <div className="max-w-2xl mx-auto text-center">
@@ -236,7 +280,7 @@ export default function LandingPage() {
               onClick={() => { setShowContact(true); setSent(false); }}
               className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-3 rounded-lg transition-colors text-sm"
             >
-              Request invite
+              Request cloud access
               <ArrowRight className="h-4 w-4" />
             </button>
           </div>
@@ -252,12 +296,12 @@ export default function LandingPage() {
             </button>
             {sent ? (
               <div className="text-center py-4">
-                <p className="text-sm font-medium text-gray-900">Request received. We&#39;ll be in touch.</p>
+                <p className="text-sm font-medium text-gray-900">You&#39;re on the list! We&#39;ll be in touch soon.</p>
               </div>
             ) : (
               <form onSubmit={handleContact} className="space-y-4">
-                <h3 className="text-base font-semibold text-gray-900">Request an invite</h3>
-                <p className="text-sm text-gray-500">autogtm is currently invite-only. Tell us a bit about yourself and we&#39;ll send you a code.</p>
+                <h3 className="text-base font-semibold text-gray-900">Request cloud access</h3>
+                <p className="text-sm text-gray-500">Don&#39;t want to self-host? We&#39;ll set up and run autogtm for you. Tell us a bit about yourself.</p>
                 <input
                   type="text"
                   required
@@ -286,7 +330,7 @@ export default function LandingPage() {
                   disabled={sending}
                   className="w-full bg-gray-900 hover:bg-gray-800 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm disabled:opacity-50"
                 >
-                  {sending ? 'Sending...' : 'Request invite'}
+                  {sending ? 'Sending...' : 'Request access'}
                 </button>
               </form>
             )}
@@ -302,11 +346,20 @@ export default function LandingPage() {
             <span className="font-black text-lg tracking-tight text-white bg-indigo-600 px-1.5 py-0.5 rounded-md ml-0.5">gtm</span>
           </div>
           <div className="flex items-center gap-4">
+            <a
+              href="https://github.com/bholagabbar/autogtm"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              GitHub
+            </a>
+            <span className="text-gray-200">|</span>
             <button
               onClick={() => { setShowContact(true); setSent(false); }}
               className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
             >
-              Request invite
+              Cloud access
             </button>
             <span className="text-gray-200">|</span>
             <p className="text-xs text-gray-400">
