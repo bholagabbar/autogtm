@@ -8,7 +8,6 @@ import {
 import {
   updateCampaignStats,
   createDailyDigest,
-  getLeadsByDateRange,
   markLeadSkipped,
   setSuggestedCampaign,
   getCampaignBySourceLeadId,
@@ -707,8 +706,14 @@ export const runCompanyWebsetSearch = inngest.createFunction(
   }
 );
 
+type DigestSearchRow = { query: string; leadsFound: number };
+type DigestRoutedRow = { name: string; search: string; campaign: string };
+
 /**
- * Daily Digest - Sends daily summary email
+ * Daily Digest - Per-company daily summary email.
+ * Recipient is pulled from `companies.auto_add_digest_email` (same DB column the
+ * autopilot digest uses) — no env-var hack. Each company gets a digest scoped to
+ * its own leads + campaigns, so multi-tenant inboxes stay clean.
  */
 export const dailyDigest = inngest.createFunction(
   {
@@ -717,85 +722,231 @@ export const dailyDigest = inngest.createFunction(
   },
   { cron: '0 18 * * *' }, // 6 PM every day
   async ({ step, logger }) => {
-    // Get today's stats
     const today = new Date().toISOString().split('T')[0];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    const dayStart = `${today}T00:00:00Z`;
+    const dayEnd = `${today}T23:59:59Z`;
 
-    const todayLeads = await step.run('get-today-leads', async () => {
-      return getLeadsByDateRange(`${today}T00:00:00Z`, `${today}T23:59:59Z`);
+    const supabase = getSupabase();
+
+    const companies = await step.run('list-digest-companies', async () => {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('id, name, auto_add_digest_email')
+        .eq('system_enabled', true)
+        .not('auto_add_digest_email', 'is', null)
+        .neq('auto_add_digest_email', '');
+      if (error) throw error;
+      return (data || []) as Array<{ id: string; name: string; auto_add_digest_email: string }>;
     });
 
-    // Get campaign stats from Instantly
-    const campaigns = await step.run('get-campaigns', async () => {
-      const supabase = getSupabase();
-      const { data: allCampaigns } = await supabase.from('campaigns').select('*').order('created_at', { ascending: false });
-      const stats = { sent: 0, opens: 0, replies: 0 };
+    if (companies.length === 0) {
+      logger.info('Daily digest: no companies with digest email configured');
+      return { date: today, companies: 0 };
+    }
 
-      for (const campaign of (allCampaigns || [])) {
-        try {
-          const analytics = await getCampaignAnalytics(campaign.instantly_campaign_id);
-          stats.sent += analytics.sent;
-          stats.opens += analytics.opened;
-          stats.replies += analytics.replied;
+    const results: Array<{ companyId: string; sent: boolean; leads: number; emails: number }> = [];
 
-          // Update campaign stats in DB
-          await updateCampaignStats(campaign.id, {
-            emails_sent: analytics.sent,
-            opens: analytics.opened,
-            replies: analytics.replied,
-          });
-        } catch (e) {
-          logger.error(`Failed to get analytics for campaign ${campaign.id}:`, e);
+    for (const company of companies) {
+      const result = await step.run(`digest-${company.id}`, async () => {
+        // Company campaigns (id -> name) for routed-leads section
+        const { data: companyCampaigns } = await supabase
+          .from('campaigns')
+          .select('id, name, instantly_campaign_id')
+          .eq('company_id', company.id);
+        const campaignNameById = new Map<string, string>(
+          (companyCampaigns || []).map((c: { id: string; name: string }) => [c.id, c.name])
+        );
+        const campaignIds = (companyCampaigns || []).map((c: { id: string }) => c.id);
+
+        // Section 1 — today's searches: webset_runs started today, joined to query text.
+        const { data: companyQueries } = await supabase
+          .from('exa_queries')
+          .select('id, query')
+          .eq('company_id', company.id);
+        const queryTextById = new Map<string, string>(
+          (companyQueries || []).map((q: { id: string; query: string }) => [q.id, q.query])
+        );
+        const queryIds = (companyQueries || []).map((q: { id: string }) => q.id);
+
+        const searches: DigestSearchRow[] = [];
+        if (queryIds.length > 0) {
+          const { data: runs } = await supabase
+            .from('webset_runs')
+            .select('query_id, items_found')
+            .in('query_id', queryIds)
+            .gte('started_at', dayStart)
+            .lte('started_at', dayEnd)
+            .order('items_found', { ascending: false });
+          // Aggregate by query (a query may run multiple times in a day)
+          const byQuery = new Map<string, number>();
+          for (const r of (runs || []) as Array<{ query_id: string; items_found: number }>) {
+            byQuery.set(r.query_id, (byQuery.get(r.query_id) || 0) + (r.items_found || 0));
+          }
+          for (const [qid, count] of byQuery.entries()) {
+            searches.push({ query: queryTextById.get(qid) || 'Unknown search', leadsFound: count });
+          }
+          searches.sort((a, b) => b.leadsFound - a.leadsFound);
         }
-      }
+        const leadsFoundTotal = searches.reduce((sum, s) => sum + s.leadsFound, 0);
 
-      return stats;
-    });
+        // Section 2 — leads reached out today (routed today into one of this company's campaigns)
+        const reachedOut: DigestRoutedRow[] = [];
+        if (campaignIds.length > 0) {
+          const { data: routed } = await supabase
+            .from('leads')
+            .select('full_name, query_id, campaign_id, campaign_routed_at')
+            .in('campaign_id', campaignIds)
+            .gte('campaign_routed_at', dayStart)
+            .lte('campaign_routed_at', dayEnd)
+            .order('campaign_routed_at', { ascending: false });
+          for (const l of (routed || []) as Array<{ full_name: string | null; query_id: string | null; campaign_id: string | null }>) {
+            reachedOut.push({
+              name: l.full_name?.trim() || 'Unnamed lead',
+              search: (l.query_id && queryTextById.get(l.query_id)) || '—',
+              campaign: (l.campaign_id && campaignNameById.get(l.campaign_id)) || '—',
+            });
+          }
+        }
 
-    // Send digest email
-    await step.run('send-digest', async () => {
-      const recipients = process.env.DIGEST_RECIPIENTS?.split(',').filter(Boolean) || [];
-      if (recipients.length === 0) return;
+        // Section 3 — net outbound stats (Instantly, all company campaigns; doubles as analytics sync)
+        const stats = { sent: 0, opens: 0, replies: 0 };
+        for (const c of (companyCampaigns || [])) {
+          if (!c.instantly_campaign_id) continue;
+          try {
+            const analytics = await getCampaignAnalytics(c.instantly_campaign_id);
+            stats.sent += analytics.sent;
+            stats.opens += analytics.opened;
+            stats.replies += analytics.replied;
+            await updateCampaignStats(c.id, {
+              emails_sent: analytics.sent,
+              opens: analytics.opened,
+              replies: analytics.replied,
+            });
+          } catch (e) {
+            logger.error(`Daily digest: analytics failed for campaign ${c.id}:`, e);
+          }
+        }
 
-      const leadsWithEmail = todayLeads.filter((l) => l.email).length;
-
-      await getResend().emails.send({
-        from: process.env.DIGEST_FROM_EMAIL || 'autogtm <noreply@example.com>',
-        to: recipients,
-        subject: `autogtm Daily Digest - ${today}`,
-        html: `
-          <h1>autogtm Daily Digest</h1>
-          <p>Here's your daily summary for ${today}:</p>
-          
-          <h2>Leads</h2>
-          <ul>
-            <li><strong>${todayLeads.length}</strong> new leads discovered</li>
-            <li><strong>${leadsWithEmail}</strong> with verified emails</li>
-          </ul>
-          
-          <h2>Campaigns</h2>
-          <ul>
-            <li><strong>${campaigns.sent}</strong> emails sent</li>
-            <li><strong>${campaigns.opens}</strong> opens</li>
-            <li><strong>${campaigns.replies}</strong> replies</li>
-          </ul>
-          
-          <p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3200'}">View Dashboard</a></p>
-        `,
+        try {
+          await getResend().emails.send({
+            from: process.env.DIGEST_FROM_EMAIL || 'autogtm <noreply@example.com>',
+            to: [company.auto_add_digest_email],
+            subject: `autogtm Digest · ${company.name} · ${today} · ${leadsFoundTotal} found · ${reachedOut.length} reached`,
+            html: renderDailyDigestHtml({
+              companyName: company.name,
+              date: today,
+              searches,
+              reachedOut,
+              leadsFoundTotal,
+              stats,
+              appUrl: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3200',
+            }),
+          });
+          logger.info(`Daily digest sent for ${company.name} -> ${company.auto_add_digest_email}`);
+          return { companyId: company.id, sent: true, leads: leadsFoundTotal, emails: stats.sent };
+        } catch (e) {
+          logger.error(`Daily digest: send failed for company ${company.id}:`, e);
+          return { companyId: company.id, sent: false, leads: leadsFoundTotal, emails: stats.sent };
+        }
       });
-
-      logger.info('Daily digest sent');
-    });
+      results.push(result);
+    }
 
     return {
       date: today,
-      leadsFound: todayLeads.length,
-      emailsSent: campaigns.sent,
-      opens: campaigns.opens,
-      replies: campaigns.replies,
+      companies: companies.length,
+      results,
     };
   }
 );
+
+function renderDailyDigestHtml(params: {
+  companyName: string;
+  date: string;
+  searches: DigestSearchRow[];
+  reachedOut: DigestRoutedRow[];
+  leadsFoundTotal: number;
+  stats: { sent: number; opens: number; replies: number };
+  appUrl: string;
+}): string {
+  const { companyName, date, searches, reachedOut, leadsFoundTotal, stats, appUrl } = params;
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const truncate = (s: string, n: number) => s.length > n ? esc(s.slice(0, n)) + '…' : esc(s);
+
+  const searchRows = searches.length === 0
+    ? `<tr><td colspan="2" style="padding:14px;text-align:center;color:#999;font-size:13px;">No searches ran today.</td></tr>`
+    : searches.map((s) => `
+        <tr>
+          <td style="padding:10px 14px;border-top:1px solid #eee;font-size:13px;color:#111;">${truncate(s.query, 120)}</td>
+          <td style="padding:10px 14px;border-top:1px solid #eee;font-size:13px;color:#111;text-align:right;"><strong>${s.leadsFound}</strong></td>
+        </tr>
+      `).join('');
+
+  const reachedRows = reachedOut.length === 0
+    ? `<tr><td colspan="3" style="padding:14px;text-align:center;color:#999;font-size:13px;">No leads reached out today.</td></tr>`
+    : reachedOut.map((r) => `
+        <tr>
+          <td style="padding:10px 14px;border-top:1px solid #eee;font-size:13px;color:#111;font-weight:600;">${esc(r.name)}</td>
+          <td style="padding:10px 14px;border-top:1px solid #eee;font-size:13px;color:#555;">${truncate(r.search, 80)}</td>
+          <td style="padding:10px 14px;border-top:1px solid #eee;font-size:13px;color:#555;">${truncate(r.campaign, 80)}</td>
+        </tr>
+      `).join('');
+
+  return `<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#f6f7f9;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;">
+    <div style="max-width:680px;margin:0 auto;padding:32px 20px;">
+      <div style="background:#fff;border-radius:12px;border:1px solid #eee;overflow:hidden;">
+        <div style="padding:24px 28px;background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);color:#fff;">
+          <div style="font-size:13px;opacity:.8;letter-spacing:.04em;text-transform:uppercase;">autogtm · Daily Digest · ${esc(date)}</div>
+          <div style="font-size:28px;font-weight:700;margin-top:6px;">${esc(companyName)}</div>
+          <div style="font-size:15px;margin-top:10px;opacity:.9;">${leadsFoundTotal} found · ${reachedOut.length} reached out</div>
+        </div>
+
+        <div style="padding:24px 28px;">
+          <h3 style="margin:0 0 12px 0;font-size:14px;color:#666;font-weight:600;letter-spacing:.03em;text-transform:uppercase;">Today's searches</h3>
+          <table style="width:100%;border-collapse:collapse;border:1px solid #eee;border-radius:8px;overflow:hidden;">
+            <thead>
+              <tr style="background:#fafafa;">
+                <th style="padding:10px 14px;text-align:left;font-size:12px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Search</th>
+                <th style="padding:10px 14px;text-align:right;font-size:12px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Leads found</th>
+              </tr>
+            </thead>
+            <tbody>${searchRows}</tbody>
+          </table>
+
+          <h3 style="margin:28px 0 12px 0;font-size:14px;color:#666;font-weight:600;letter-spacing:.03em;text-transform:uppercase;">Reached out today</h3>
+          <table style="width:100%;border-collapse:collapse;border:1px solid #eee;border-radius:8px;overflow:hidden;">
+            <thead>
+              <tr style="background:#fafafa;">
+                <th style="padding:10px 14px;text-align:left;font-size:12px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Name</th>
+                <th style="padding:10px 14px;text-align:left;font-size:12px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Search</th>
+                <th style="padding:10px 14px;text-align:left;font-size:12px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Campaign</th>
+              </tr>
+            </thead>
+            <tbody>${reachedRows}</tbody>
+          </table>
+
+          <div style="margin-top:24px;padding:14px 16px;background:#f9fafb;border-radius:8px;font-size:13px;color:#555;text-align:center;">
+            <strong style="color:#111;">${stats.sent}</strong> emails sent ·
+            <strong style="color:#111;">${stats.opens}</strong> opens ·
+            <strong style="color:#111;">${stats.replies}</strong> replies
+            <span style="color:#999;"> (all-time, all campaigns)</span>
+          </div>
+
+          <div style="margin-top:24px;text-align:center;">
+            <a href="${esc(appUrl)}" style="display:inline-block;padding:12px 24px;background:#111;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;">View Dashboard</a>
+          </div>
+        </div>
+
+        <div style="padding:16px 28px;border-top:1px solid #eee;font-size:12px;color:#999;">
+          autogtm · ${esc(companyName)} · ${esc(date)}
+        </div>
+      </div>
+    </div>
+  </body>
+</html>`;
+}
 
 /**
  * Sync Campaign Analytics - Runs every hour to update stats
