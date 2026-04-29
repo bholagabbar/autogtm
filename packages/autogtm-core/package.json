@@ -14,6 +14,13 @@
     "./campaigns/createCampaignForPersona": "./src/campaigns/createCampaignForPersona.ts",
     "./campaigns/addLeadToCampaign": "./src/campaigns/addLeadToCampaign.ts",
     "./db/autogtmDbCalls": "./src/db/autogtmDbCalls.ts",
+    "./db/socialsDbCalls": "./src/db/socialsDbCalls.ts",
+    "./clients/postiz": "./src/clients/postiz.ts",
+    "./ai/classifySocialItems": "./src/ai/classifySocialItems.ts",
+    "./ai/draftSocialPost": "./src/ai/draftSocialPost.ts",
+    "./ai/generateSocialImage": "./src/ai/generateSocialImage.ts",
+    "./socials/schedulePresets": "./src/socials/schedulePresets.ts",
+    "./socials/weeklyPlanner": "./src/socials/weeklyPlanner.ts",
     "./types": "./src/types/index.ts"
   },
   "scripts": {

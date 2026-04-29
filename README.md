@@ -2,9 +2,9 @@
 
 # autogtm
 
-**autogtm is an open-source AI GTM engine that runs cold outbound on autopilot.**
+**autogtm is an open-source AI GTM engine that runs cold outbound and socials on autopilot.**
 
-Describe your target audience in plain English with optional targeted briefs, and autogtm discovers leads daily, enriches them with AI, creates tailored email campaigns, and sends via Instantly. System on, autopilot on, you sleep.
+Describe your target audience in plain English with optional targeted briefs, and autogtm discovers leads daily, enriches them with AI, creates tailored email campaigns, sends via Instantly, and can also draft/schedule social content through Postiz.
 
 ---
 
@@ -38,7 +38,10 @@ Describe your target audience in plain English with optional targeted briefs, an
 | 8:30 AM     | Generate queued search queries from briefs and company context                        |
 | 9:00 AM     | Run searches, discover and enrich leads                                               |
 | 10:00 AM ET | **Autopilot sweep** — auto-add top N Ready-to-Add leads + digest email (when enabled) |
+| Sun 6:00 PM ET | **Social weekly planner** — maps themes to next week's slots from company schedule |
+| Mon 8:00 AM ET | **Social auto-approve fallback** — drafts captions for untouched week plans        |
 | Hourly      | Sync campaign status and analytics from Instantly                                     |
+| Every 5 min | **Social publish sweep** — pushes due approved posts to Postiz                        |
 | 2:00 PM ET  | Send daily discovery digest email                                                     |
 
 
@@ -55,6 +58,8 @@ Describe your target audience in plain English with optional targeted briefs, an
 - **Exploration mode:** When no new briefs exist, AI generates creative queries to keep pipeline coverage fresh.
 - **Daily digests:** Two summary emails — a per-company Autopilot digest (what was auto-added and to which campaigns) and a global discovery digest (leads found, emails sent, opens, replies).
 - **Multi-company:** Manage multiple company profiles from a single dashboard.
+- **Socials module (v1):** Company-level schedule presets + theme-based content generation from raw dumps, with two review gates (weekly plan, then captions) before publishing.
+- **Postiz publishing:** Auto-uploads generated images and publishes approved Instagram posts via Postiz Public API.
 
 ## Stack
 
@@ -67,6 +72,7 @@ Describe your target audience in plain English with optional targeted briefs, an
 | Background Jobs | [Inngest](https://inngest.com)                                                      |
 | Lead Discovery  | [Exa.ai](https://exa.ai) (Websets API)                                              |
 | Email Sending   | [Instantly.ai](https://instantly.ai)                                                |
+| Social Publishing | [Postiz](https://docs.postiz.com/public-api/introduction)                         |
 | AI              | [OpenAI](https://openai.com) (GPT-4.1 / GPT-5-mini)                                 |
 | Digest Emails   | [Resend](https://resend.com)                                                        |
 
@@ -82,6 +88,7 @@ Accounts needed:
 - [Supabase](https://supabase.com) — database and authentication
 - [Exa.ai](https://exa.ai) — lead discovery via Websets API
 - [Instantly.ai](https://instantly.ai) — email campaign sending
+- [Postiz](https://docs.postiz.com/public-api/introduction) — social account publishing
 - [OpenAI](https://platform.openai.com) — AI enrichment and generation
 - [Inngest](https://inngest.com) — background job scheduling
 - [Resend](https://resend.com) — daily digest emails (optional)
@@ -123,6 +130,64 @@ Create a new Supabase project at [supabase.com](https://supabase.com), then:
 This creates all required tables, indexes, RLS policies, and helper functions.
 
 If you already have a Supabase project from an earlier version, apply incremental migrations from `[migrations/](./migrations/)` instead — they're safe to re-run (`IF NOT EXISTS` guarded).
+
+## Socials Module (v1)
+
+The Socials tab adds an Instagram-first content pipeline:
+
+1. Define reusable **themes** (`Audition Wins`, `Breakdown Weekly`, etc.) with:
+   - caption prompt template
+   - image prompt template
+   - brand voice
+   - priority (how often it should win a slot)
+2. Configure a company-wide **schedule preset** (`creator_mwf`, `brand_weekday`, etc.).
+3. Paste or upload a raw **data dump** (CSV/text). The LLM auto-classifies rows into themes.
+4. Every week, planner maps `themes -> slots -> data items` and creates `planned` posts.
+5. You approve the week plan, then caption drafts move to `pending_review`.
+6. Once approved, image generation runs close to publish time and post is pushed to Postiz.
+
+### Supabase Storage bucket setup (required for socials images)
+
+Create a bucket named `social-images` in Supabase Storage and keep `SUPABASE_STORAGE_BUCKET_SOCIAL=social-images` in env.
+
+- **Public bucket (recommended for v1):**
+  - Mark bucket as public so `getPublicUrl()` links work directly in Postiz publish flow.
+- **Access policy expectation:**
+  - Backend writes run with `SUPABASE_SERVICE_ROLE_KEY`.
+  - If you enforce storage policies manually, allow `service_role` to upload/update/list objects for `bucket_id = 'social-images'`.
+
+The app also attempts to create the bucket on first image generation if it does not exist, but setting it up explicitly in Supabase avoids first-run surprises.
+
+### Reels/video model switch (OpenRouter)
+
+For reel-first workflows, set:
+
+- `SOCIAL_MEDIA_ASSET_MODE=video`
+- `OPENROUTER_API_KEY=...`
+- `OPENROUTER_VIDEO_MODEL=google/veo-3.1-fast` or `bytedance/seedance-2.0-fast`
+
+Defaults:
+
+- `SOCIAL_MEDIA_ASSET_MODE=image` (OpenAI `gpt-image-1`)
+- `OPENROUTER_VIDEO_MODEL=google/veo-3.1-fast`
+
+When in `video` mode, the generation step requests video via OpenRouter, stores the generated media in Supabase Storage, and publish flow sends video payloads to connected Postiz channels.
+
+### One-time Postiz setup
+
+1. In Postiz: connect your Instagram channel.
+2. Generate API key in **Settings > Developers > Public API**.
+3. Set env vars:
+   - `POSTIZ_API_KEY`
+   - `POSTIZ_BASE_URL=https://api.postiz.com/public/v1`
+   - `POSTIZ_INSTAGRAM_INTEGRATION_ID` (optional override)
+4. Optional: manually pin integration ID:
+
+```bash
+curl -H "Authorization: $POSTIZ_API_KEY" https://api.postiz.com/public/v1/integrations
+```
+
+If not set, autogtm auto-detects the first Instagram integration from `GET /integrations`.
 
 
 

@@ -22,6 +22,29 @@ import { createDraftCampaignForLead } from '@autogtm/core/campaigns/createCampai
 import { addLeadToCampaignCore, type AddLeadToCampaignResult } from '@autogtm/core/campaigns/addLeadToCampaign';
 import type { AutoAddRunBreakdownEntry } from '@autogtm/core/types';
 import { extractEmailFromEnrichmentData } from '@autogtm/core/ai/extractEmail';
+import { classifySocialItems } from '@autogtm/core/ai/classifySocialItems';
+import { draftSocialPost as draftSocialPostCopy } from '@autogtm/core/ai/draftSocialPost';
+import { generateSocialImage as generateSocialImageAsset } from '@autogtm/core/ai/generateSocialImage';
+import { uploadFromUrl, createPost, listIntegrations } from '@autogtm/core/clients/postiz';
+import {
+  createSocialDataDump,
+  createSocialDataItems,
+  updateSocialDataDump,
+  listSocialThemes,
+  getSocialSchedule,
+  upsertSocialWeekPlan,
+  getSocialWeekPlan,
+  createSocialPosts,
+  listSocialPosts,
+  getSocialPostById,
+  updateSocialPost,
+  updateSocialDataItem,
+  createSocialPublishRun,
+  completeSocialPublishRun,
+  listSocialWeekPlans,
+  type SocialDataItem,
+} from '@autogtm/core/db/socialsDbCalls';
+import { allocateWeek } from '@autogtm/core/socials/weeklyPlanner';
 import { resolveOutreachPromptForLead } from '@/lib/outreachPromptResolver';
 import { Resend } from 'resend';
 import { createClient } from '@supabase/supabase-js';
@@ -1534,6 +1557,635 @@ function renderAutoAddDigestHtml(params: {
 </html>`;
 }
 
+function getNextIsoWeekStartUtc(now = new Date()): Date {
+  const date = new Date(now);
+  const day = date.getUTCDay();
+  const diffToMonday = ((8 - day) % 7) || 7;
+  date.setUTCDate(date.getUTCDate() + diffToMonday);
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+}
+
+function getCurrentIsoWeekStartUtc(now = new Date()): Date {
+  const date = new Date(now);
+  const day = date.getUTCDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  date.setUTCDate(date.getUTCDate() + diffToMonday);
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+}
+
+function toDateOnly(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function splitRawDumpIntoItems(raw: string): string[] {
+  return raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 300);
+}
+
+export const processSocialDump = inngest.createFunction(
+  {
+    id: 'process-social-dump',
+    name: 'Process Social Dump',
+    retries: 1,
+  },
+  { event: 'autogtm/social.dump-created' },
+  async ({ event, step, logger }) => {
+    const { companyId, dumpId } = event.data as { companyId: string; dumpId: string };
+    const supabase = getSupabase();
+
+    const dump = await step.run('load-social-dump', async () => {
+      const { data, error } = await supabase
+        .from('social_data_dumps')
+        .select('*')
+        .eq('id', dumpId)
+        .eq('company_id', companyId)
+        .single();
+      if (error) throw error;
+      return data;
+    });
+
+    await step.run('mark-dump-processing', async () => {
+      await updateSocialDataDump(dumpId, { parse_status: 'processing', error: null });
+    });
+
+    const themes = await step.run('load-social-themes', () => listSocialThemes(companyId));
+    const rawItems = splitRawDumpIntoItems(dump.raw_content || '');
+    if (rawItems.length === 0) {
+      await step.run('mark-dump-empty', async () => {
+        await updateSocialDataDump(dumpId, {
+          parse_status: 'completed',
+          items_extracted: 0,
+        });
+      });
+      return { dumpId, itemsExtracted: 0 };
+    }
+
+    const classified = await step.run('classify-social-items', async () =>
+      classifySocialItems(
+        rawItems,
+        themes.map((theme) => ({ id: theme.id, name: theme.name, purpose: theme.purpose }))
+      )
+    );
+
+    await step.run('insert-social-items', async () => {
+      await createSocialDataItems(
+        companyId,
+        dumpId,
+        classified.map((item) => ({
+          raw_text: item.raw_text,
+          structured: item.structured,
+          suggested_theme_id: item.suggested_theme_id,
+          theme_id: item.suggested_theme_id,
+          classification_confidence: item.confidence,
+          classification_reason: item.reason,
+          status: item.suggested_theme_id ? 'classified' : 'pending_classification',
+        }))
+      );
+    });
+
+    await step.run('mark-dump-completed', async () => {
+      await updateSocialDataDump(dumpId, {
+        parse_status: 'completed',
+        items_extracted: classified.length,
+      });
+    });
+
+    logger.info(`Social dump processed: ${dumpId} (${classified.length} items)`);
+    return { dumpId, itemsExtracted: classified.length };
+  }
+);
+
+export const socialWeeklyPlanner = inngest.createFunction(
+  {
+    id: 'social-weekly-planner',
+    name: 'Social Weekly Planner',
+    retries: 1,
+  },
+  { cron: '0 23 * * 0' },
+  async ({ step, logger }) => {
+    const supabase = getSupabase();
+    const companies = await step.run('list-social-companies', async () => {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('id, name')
+        .eq('system_enabled', true);
+      if (error) throw error;
+      return data || [];
+    });
+
+    const weekStart = getNextIsoWeekStartUtc();
+    const weekStartDate = toDateOnly(weekStart);
+    let plannedCount = 0;
+
+    for (const company of companies) {
+      await step.run(`plan-social-week-${company.id}`, async () => {
+        const existingPlan = await getSocialWeekPlan(company.id, weekStartDate);
+        if (existingPlan) return;
+
+        const schedule = await getSocialSchedule(company.id);
+        if (!schedule?.is_active || !Array.isArray(schedule.slots) || schedule.slots.length === 0) return;
+
+        const themes = (await listSocialThemes(company.id)).filter((theme) => theme.is_active);
+        if (themes.length === 0) return;
+
+        const allItems = await listSocialPosts(company.id, { status: 'planned', limit: 1 });
+        if (allItems.length > 5000) return;
+
+        const { data: classifiedItems, error: itemsError } = await supabase
+          .from('social_data_items')
+          .select('*')
+          .eq('company_id', company.id)
+          .eq('status', 'classified')
+          .order('created_at', { ascending: true });
+        if (itemsError) throw itemsError;
+        const items = (classifiedItems || []) as SocialDataItem[];
+
+        const inventoryByThemeId: Record<string, number> = {};
+        const itemsByThemeId: Record<string, SocialDataItem[]> = {};
+        for (const theme of themes) {
+          const matching = items.filter((item) => item.theme_id === theme.id);
+          inventoryByThemeId[theme.id] = matching.length;
+          itemsByThemeId[theme.id] = matching;
+        }
+
+        const slots = (schedule.slots || []).flatMap((slot, idx) => {
+          const out: Array<{ slot_index: number; day_of_week: number; hour_utc: number; theme_id?: string | null; scheduled_for: string }> = [];
+          for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+            const dayDate = new Date(weekStart);
+            dayDate.setUTCDate(weekStart.getUTCDate() + dayOffset);
+            if (dayDate.getUTCDay() !== slot.day_of_week) continue;
+            dayDate.setUTCHours(slot.hour_utc, 0, 0, 0);
+            out.push({
+              slot_index: idx + dayOffset * 100,
+              day_of_week: slot.day_of_week,
+              hour_utc: slot.hour_utc,
+              theme_id: slot.theme_id || null,
+              scheduled_for: dayDate.toISOString(),
+            });
+          }
+          return out;
+        }).sort((a, b) => a.scheduled_for.localeCompare(b.scheduled_for));
+
+        if (slots.length === 0) return;
+
+        const allocation = allocateWeek({
+          slots,
+          themes: themes.map((theme) => ({
+            id: theme.id,
+            name: theme.name,
+            priority: theme.priority,
+            is_active: theme.is_active,
+          })),
+          inventoryByThemeId,
+        });
+
+        const weekPlan = await upsertSocialWeekPlan(company.id, weekStartDate, {
+          status: 'draft',
+          planner_summary: allocation.summary as unknown as Record<string, unknown>,
+        });
+
+        const postsToCreate: Array<{
+          company_id: string;
+          theme_id: string | null;
+          data_item_id: string | null;
+          week_plan_id: string;
+          slot_index: number;
+          scheduled_for: string;
+          status: 'planned';
+        }> = [];
+
+        for (const assignment of allocation.slotAssignments) {
+          if ('skipped' in assignment && assignment.skipped) continue;
+          const pool = itemsByThemeId[assignment.theme_id] || [];
+          const item = pool.shift();
+          if (!item) continue;
+          postsToCreate.push({
+            company_id: company.id,
+            theme_id: assignment.theme_id,
+            data_item_id: item.id,
+            week_plan_id: weekPlan.id,
+            slot_index: assignment.slot_index,
+            scheduled_for: assignment.scheduled_for,
+            status: 'planned',
+          });
+          await updateSocialDataItem(company.id, item.id, { status: 'reserved' });
+        }
+
+        if (postsToCreate.length > 0) {
+          await createSocialPosts(postsToCreate);
+          plannedCount += postsToCreate.length;
+        }
+      });
+    }
+
+    logger.info(`Social weekly planner created ${plannedCount} planned posts`);
+    return { companies: companies.length, plannedCount, weekStartDate };
+  }
+);
+
+export const socialPlanAutoApprove = inngest.createFunction(
+  {
+    id: 'social-plan-auto-approve',
+    name: 'Social Plan Auto Approve',
+    retries: 1,
+  },
+  { cron: '0 12 * * 1' },
+  async ({ step, logger }) => {
+    const supabase = getSupabase();
+    const currentWeekStart = toDateOnly(getCurrentIsoWeekStartUtc());
+    const weekPlans = await step.run('list-draft-week-plans', async () => {
+      const { data, error } = await supabase
+        .from('social_week_plans')
+        .select('id, company_id')
+        .eq('week_start_date', currentWeekStart)
+        .eq('status', 'draft');
+      if (error) throw error;
+      return data || [];
+    });
+
+    if (weekPlans.length > 0) {
+      await step.sendEvent(
+        'enqueue-social-plan-approvals',
+        weekPlans.map((plan) => ({
+          name: 'autogtm/social.plan-approved',
+          data: { companyId: plan.company_id, weekPlanId: plan.id, trigger: 'auto' as const },
+        }))
+      );
+    }
+
+    logger.info(`Auto-approved ${weekPlans.length} social week plans`);
+    return { approved: weekPlans.length };
+  }
+);
+
+export const socialPlanApproved = inngest.createFunction(
+  {
+    id: 'social-plan-approved',
+    name: 'Social Plan Approved',
+    retries: 1,
+    concurrency: { key: 'event.data.weekPlanId', limit: 1 },
+  },
+  { event: 'autogtm/social.plan-approved' },
+  async ({ event, step }) => {
+    const { companyId, weekPlanId } = event.data as { companyId: string; weekPlanId: string; trigger?: 'manual' | 'auto' };
+    const supabase = getSupabase();
+
+    await step.run('mark-week-plan-approved', async () => {
+      const { error } = await supabase
+        .from('social_week_plans')
+        .update({ status: 'approved', approved_at: new Date().toISOString() })
+        .eq('id', weekPlanId)
+        .eq('company_id', companyId);
+      if (error) throw error;
+    });
+
+    const posts = await step.run('list-planned-posts', async () => {
+      const { data, error } = await supabase
+        .from('social_posts')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('week_plan_id', weekPlanId)
+        .eq('status', 'planned');
+      if (error) throw error;
+      return data || [];
+    });
+
+    if (posts.length > 0) {
+      await step.sendEvent(
+        'fanout-draft-social-posts',
+        posts.map((post) => ({
+          name: 'autogtm/social.draft-post',
+          data: { companyId, postId: post.id },
+        }))
+      );
+    }
+
+    return { weekPlanId, drafted: posts.length };
+  }
+);
+
+export const draftSocialPost = inngest.createFunction(
+  {
+    id: 'draft-social-post',
+    name: 'Draft Social Post',
+    retries: 1,
+  },
+  { event: 'autogtm/social.draft-post' },
+  async ({ event, step }) => {
+    const { companyId, postId } = event.data as { companyId: string; postId: string };
+    const supabase = getSupabase();
+
+    const row = await step.run('load-post-theme-item', async () => {
+      const { data, error } = await supabase
+        .from('social_posts')
+        .select(`
+          *,
+          social_themes!social_posts_theme_id_fkey(*),
+          social_data_items!social_posts_data_item_id_fkey(*)
+        `)
+        .eq('id', postId)
+        .eq('company_id', companyId)
+        .single();
+      if (error) throw error;
+      return data;
+    });
+
+    if (!row?.social_themes || !row?.social_data_items) {
+      throw new Error(`Cannot draft post ${postId}: missing theme or data item`);
+    }
+
+    const draft = await step.run('generate-draft-copy', async () =>
+      draftSocialPostCopy(
+        {
+          id: row.social_themes.id,
+          name: row.social_themes.name,
+          purpose: row.social_themes.purpose,
+          caption_prompt: row.social_themes.caption_prompt,
+          image_prompt_template: row.social_themes.image_prompt_template,
+          brand_voice: row.social_themes.brand_voice,
+        },
+        {
+          id: row.social_data_items.id,
+          raw_text: row.social_data_items.raw_text,
+          structured: row.social_data_items.structured || {},
+        }
+      )
+    );
+
+    await step.run('update-post-draft', async () => {
+      await updateSocialPost(companyId, postId, {
+        caption: draft.caption,
+        hashtags: draft.hashtags,
+        image_prompt: draft.image_prompt,
+        status: 'pending_review',
+      });
+      await updateSocialDataItem(companyId, row.social_data_items.id, {
+        status: 'used',
+        used_for_post_id: postId,
+      });
+    });
+
+    return { postId };
+  }
+);
+
+export const socialImageSweep = inngest.createFunction(
+  {
+    id: 'social-image-sweep',
+    name: 'Social Image Sweep',
+  },
+  { cron: '0 * * * *' },
+  async ({ step }) => {
+    const supabase = getSupabase();
+    const now = new Date();
+    const inTwoHours = new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString();
+
+    const posts = await step.run('list-image-candidates', async () => {
+      const { data, error } = await supabase
+        .from('social_posts')
+        .select('id, company_id')
+        .eq('status', 'approved')
+        .eq('image_status', 'not_generated')
+        .lte('scheduled_for', inTwoHours);
+      if (error) throw error;
+      return data || [];
+    });
+
+    if (posts.length > 0) {
+      await step.sendEvent(
+        'fanout-image-generation',
+        posts.map((post) => ({
+          name: 'autogtm/social.image-gen',
+          data: { companyId: post.company_id, postId: post.id },
+        }))
+      );
+    }
+
+    return { queued: posts.length };
+  }
+);
+
+export const generateSocialImage = inngest.createFunction(
+  {
+    id: 'generate-social-image',
+    name: 'Generate Social Image',
+    retries: 1,
+  },
+  { event: 'autogtm/social.image-gen' },
+  async ({ event, step }) => {
+    const { companyId, postId, mode } = event.data as { companyId: string; postId: string; mode?: 'image' | 'video' };
+    const post = await step.run('load-image-post', () => getSocialPostById(companyId, postId));
+    if (!post || !post.image_prompt) return { skipped: true };
+
+    await step.run('mark-image-generating', async () => {
+      await updateSocialPost(companyId, postId, { image_status: 'generating' });
+    });
+
+    const image = await step.run('generate-image-asset', () =>
+      generateSocialImageAsset({
+        prompt: post.image_prompt || '',
+        companyId,
+        postId,
+        mode: mode || (process.env.SOCIAL_MEDIA_ASSET_MODE === 'video' ? 'video' : 'image'),
+      })
+    );
+
+    await step.run('mark-image-generated', async () => {
+      await updateSocialPost(companyId, postId, {
+        image_status: 'generated',
+        image_url: image.imageUrl,
+        status: 'image_ready',
+      });
+    });
+
+    return { postId, imageUrl: image.imageUrl };
+  }
+);
+
+export const socialPublishSweep = inngest.createFunction(
+  {
+    id: 'social-publish-sweep',
+    name: 'Social Publish Sweep',
+  },
+  { cron: '*/5 * * * *' },
+  async ({ step }) => {
+    const supabase = getSupabase();
+    const now = new Date().toISOString();
+
+    const posts = await step.run('list-publish-candidates', async () => {
+      const { data, error } = await supabase
+        .from('social_posts')
+        .select('id, company_id')
+        .eq('status', 'image_ready')
+        .eq('image_status', 'generated')
+        .lte('scheduled_for', now);
+      if (error) throw error;
+      return data || [];
+    });
+
+    if (posts.length > 0) {
+      await step.sendEvent(
+        'fanout-social-publish',
+        posts.map((post) => ({
+          name: 'autogtm/social.publish',
+          data: { companyId: post.company_id, postId: post.id },
+        }))
+      );
+    }
+
+    return { queued: posts.length };
+  }
+);
+
+export const publishSocialPost = inngest.createFunction(
+  {
+    id: 'publish-social-post',
+    name: 'Publish Social Post',
+    retries: 1,
+  },
+  { event: 'autogtm/social.publish' },
+  async ({ event, step }) => {
+    const { companyId, postId } = event.data as { companyId: string; postId: string };
+    const integrationsForPublish = await step.run('resolve-postiz-integrations', async () => {
+      const allIntegrations = await listIntegrations();
+      const activeIntegrations = allIntegrations.filter((integration) => integration.id && integration.disabled !== true);
+
+      const overrideInstagramId = process.env.POSTIZ_INSTAGRAM_INTEGRATION_ID;
+      const targetIdentifiers = (process.env.POSTIZ_TARGET_IDENTIFIERS || '')
+        .split(',')
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean);
+
+      let selected = activeIntegrations.filter((integration) => {
+        const identifier = String(integration.identifier || '').toLowerCase();
+        if (!identifier) return false;
+        if (targetIdentifiers.length > 0 && !targetIdentifiers.includes(identifier)) return false;
+        return true;
+      });
+
+      if (overrideInstagramId) {
+        const hasOverride = selected.some((integration) => integration.id === overrideInstagramId);
+        if (!hasOverride) {
+          const override = activeIntegrations.find((integration) => integration.id === overrideInstagramId);
+          if (override) selected = [override, ...selected];
+        }
+      }
+
+      if (selected.length === 0) {
+        throw new Error('No publishable Postiz integrations found. Connect platforms and/or set POSTIZ_TARGET_IDENTIFIERS.');
+      }
+
+      return selected;
+    });
+
+    const post = await step.run('load-publish-post', () => getSocialPostById(companyId, postId));
+    if (!post || !post.image_url || !post.caption) return { skipped: true };
+    const mediaMode = post.image_url.toLowerCase().includes('.mp4') ? 'video' : 'image';
+
+    const run = await step.run('create-publish-run', () =>
+      createSocialPublishRun({ company_id: companyId, social_post_id: postId, trigger: 'cron' })
+    );
+
+    try {
+      const upload = await step.run('postiz-upload-from-url', () => uploadFromUrl(post.image_url!));
+      const content = `${post.caption}\n\n${(post.hashtags || []).join(' ')}`.trim();
+      const publishResults: Array<{ integrationId: string; identifier: string; response: { id?: string; releaseId?: string } }> = [];
+      const publishErrors: Array<{ integrationId: string; identifier: string; error: string }> = [];
+
+      for (const integration of integrationsForPublish) {
+        const integrationId = String(integration.id || '');
+        const identifier = String(integration.identifier || '').toLowerCase();
+        if (!integrationId || !identifier) continue;
+
+        const settings: Record<string, unknown> = { __type: identifier };
+        if (identifier === 'instagram' || identifier === 'instagram-standalone') {
+          settings.post_type = mediaMode === 'video' ? 'reels' : 'post';
+        }
+
+        try {
+          const mediaPayload = mediaMode === 'video'
+            ? { video: [{ id: upload.id, path: upload.path }] }
+            : { image: [{ id: upload.id, path: upload.path }] };
+          const response = await step.run(`postiz-create-post-${integrationId}`, () =>
+            createPost({
+              type: 'now',
+              date: new Date().toISOString(),
+              shortLink: false,
+              tags: [],
+              posts: [
+                {
+                  integration: { id: integrationId },
+                  value: [
+                    {
+                      content,
+                      ...mediaPayload,
+                    },
+                  ],
+                  settings,
+                },
+              ],
+            })
+          );
+          publishResults.push({ integrationId, identifier, response });
+        } catch (error) {
+          publishErrors.push({
+            integrationId,
+            identifier,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      if (publishResults.length === 0) {
+        throw new Error(`Postiz publish failed for all integrations: ${publishErrors.map((e) => `${e.identifier}:${e.error}`).join(' | ')}`);
+      }
+
+      const firstSuccess = publishResults[0];
+      const partialError = publishErrors.length > 0
+        ? `partial_failures=${publishErrors.map((e) => `${e.identifier}`).join(',')}`
+        : null;
+
+      await step.run('mark-post-published', async () => {
+        await updateSocialPost(companyId, postId, {
+          status: 'published',
+          postiz_post_id: firstSuccess.response.id || null,
+          postiz_release_id: (firstSuccess.response.releaseId as string | undefined) || null,
+          error: partialError,
+          published_at: new Date().toISOString(),
+        });
+      });
+
+      await step.run('complete-publish-run-success', () =>
+        completeSocialPublishRun(run.id, {
+          status: 'completed',
+          postiz_post_id: firstSuccess.response.id || null,
+          postiz_release_id: (firstSuccess.response.releaseId as string | undefined) || null,
+          error: partialError,
+        })
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await step.run('mark-post-failed', async () => {
+        await updateSocialPost(companyId, postId, {
+          status: 'failed',
+          error: message,
+        });
+      });
+      await step.run('complete-publish-run-failed', () =>
+        completeSocialPublishRun(run.id, { status: 'failed', error: message })
+      );
+      throw error;
+    }
+
+    return { postId };
+  }
+);
+
 // Export all functions
 export const functions = [
   processWebsetRun,
@@ -1548,4 +2200,13 @@ export const functions = [
   syncCampaignAnalytics,
   autoAddSweep,
   autoAddSweepCompany,
+  processSocialDump,
+  socialWeeklyPlanner,
+  socialPlanAutoApprove,
+  socialPlanApproved,
+  draftSocialPost,
+  socialImageSweep,
+  generateSocialImage,
+  socialPublishSweep,
+  publishSocialPost,
 ];

@@ -3,7 +3,7 @@
  * Uses Supabase as the data store
  */
 import { SupabaseClient } from '@supabase/supabase-js';
-import type { Company, ExaQuery, WebsetRun, Lead, Campaign, CampaignWithStats, CampaignEmail, DailyDigest, AllowedUser } from '../types';
+import type { Company, ExaQuery, WebsetRun, Lead, Campaign, CampaignWithStats, CampaignEmail, DailyDigest, AllowedUser, AutoAddRun, AutoAddRunBreakdownEntry } from '../types';
 export declare function getSupabaseClient(): SupabaseClient;
 export declare function createCompany(company: Omit<Company, 'id' | 'created_at' | 'updated_at'>): Promise<Company>;
 export declare function getCompany(id: string): Promise<Company | null>;
@@ -55,3 +55,49 @@ export declare function getCompanyStats(companyId: string): Promise<{
     totalOpens: number;
     totalReplies: number;
 }>;
+/** Leads that qualify for the daily auto-add sweep for a given company. */
+export interface AutoAddEligibleLead {
+    id: string;
+    email: string;
+    full_name: string;
+    promotion_fit_score: number;
+    suggested_campaign_id: string;
+    category: string | null;
+    bio: string | null;
+    suggested_campaign_reason: string | null;
+}
+/** All companies with autopilot enabled AND the master system enabled, returning
+ *  only fields needed by the sweep. Gating on both makes Autopilot a strict
+ *  subset of System — turning System off guarantees the sweep is a no-op. */
+export declare function listAutoEnabledCompanies(): Promise<Array<Pick<Company, 'id' | 'name' | 'auto_add_enabled' | 'auto_add_min_fit_score' | 'auto_add_daily_limit' | 'auto_add_run_hour_utc' | 'auto_add_digest_email'>>>;
+/**
+ * Fetch up to `limit` leads eligible for auto-add, sorted by fit score desc then recency.
+ * A lead is eligible when it has a suggested campaign belonging to this company,
+ * a valid email + name, a fit score at or above the configured threshold, and is
+ * not yet routed/skipped.
+ *
+ * Two small queries beat one big one here: campaign ids first (indexed on company_id),
+ * then `leads` filtered by `suggested_campaign_id IN (...)` — all filtering server-side,
+ * no over-fetch, result count == `limit` at most.
+ */
+export declare function getEligibleLeadsForAutoAdd(companyId: string, minFitScore: number, limit: number): Promise<AutoAddEligibleLead[]>;
+/** Count of remaining Ready-to-Add leads at or above a fit threshold, used in digest footer. */
+export declare function countReadyToAddLeads(companyId: string, minFitScore: number): Promise<number>;
+export declare function createAutoAddRun(params: {
+    companyId: string;
+    minFitScore: number;
+    dailyLimit: number;
+    trigger: 'cron' | 'manual';
+}): Promise<AutoAddRun>;
+export declare function completeAutoAddRun(runId: string, updates: {
+    leads_considered?: number;
+    leads_added?: number;
+    leads_skipped?: number;
+    breakdown?: AutoAddRunBreakdownEntry[];
+    added_lead_ids?: string[];
+    skip_reasons?: Record<string, number>;
+    digest_sent?: boolean;
+    digest_error?: string | null;
+    error?: string | null;
+}): Promise<void>;
+export declare function getRecentAutoAddRuns(companyId: string, limit?: number): Promise<AutoAddRun[]>;

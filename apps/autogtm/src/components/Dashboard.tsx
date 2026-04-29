@@ -33,6 +33,7 @@ import {
   ArrowDownWideNarrow,
 } from 'lucide-react';
 import { AutopilotTab } from '@/components/AutopilotTab';
+import { SocialsPanel } from '@/components/SocialsPanel';
 
 interface DashboardProps {
   userEmail: string;
@@ -153,7 +154,7 @@ interface InstantlyAccount {
   warmup_status: number; // 0=Paused, 1=Active, -1=Banned
 }
 
-type Tab = 'context' | 'searches' | 'leads' | 'campaigns' | 'autopilot';
+type Tab = 'context' | 'searches' | 'leads' | 'campaigns' | 'socials' | 'autopilot';
 
 export function Dashboard({ userEmail }: DashboardProps) {
   const { toast } = useToast();
@@ -976,6 +977,7 @@ export function Dashboard({ userEmail }: DashboardProps) {
     { id: 'searches', label: 'Searches', count: stats.queries, icon: Search },
     { id: 'leads', label: 'Leads', count: stats.leads, icon: Users },
     { id: 'campaigns', label: 'Campaigns', count: liveCampaigns.length, icon: Send },
+    { id: 'socials', label: 'Socials', icon: Sparkles },
     { id: 'autopilot', label: 'Autopilot', icon: Zap, showBlip: !!company?.auto_add_enabled },
   ];
 
@@ -2130,6 +2132,11 @@ export function Dashboard({ userEmail }: DashboardProps) {
                     company={company}
                     onCompanyUpdated={(updates) => setCompany((prev) => (prev ? { ...prev, ...updates } : prev))}
                   />
+                )}
+
+                {/* Socials Tab */}
+                {activeTab === 'socials' && companyId && (
+                  <SocialsPanel companyId={companyId} />
                 )}
               </>
             )}
