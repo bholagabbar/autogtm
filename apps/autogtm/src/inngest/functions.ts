@@ -673,7 +673,8 @@ export const runCompanyWebsetSearch = inngest.createFunction(
         ],
       };
       if (queryToRun.criteria && queryToRun.criteria.length > 0) {
-        websetParams.search.criteria = queryToRun.criteria.map((c: string) => ({ description: c }));
+        // Exa rejects websets with > 5 criteria (400 Validation Error)
+        websetParams.search.criteria = queryToRun.criteria.slice(0, 5).map((c: string) => ({ description: c }));
       }
       const webset = await exa.websets.create(websetParams);
       return webset.id;

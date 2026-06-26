@@ -37,7 +37,8 @@ export async function startQueryRun(supabase: any, queryId: string): Promise<{ w
   };
 
   if (query.criteria && query.criteria.length > 0) {
-    websetParams.search.criteria = query.criteria.map((c: string) => ({ description: c }));
+    // Exa rejects websets with > 5 criteria (400 Validation Error)
+    websetParams.search.criteria = query.criteria.slice(0, 5).map((c: string) => ({ description: c }));
   }
 
   const webset = await exa.websets.create(websetParams);
