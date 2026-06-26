@@ -5,18 +5,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { LogOut, Plus, Building2 } from 'lucide-react';
 
 interface Company {
   id: string;
   name: string;
+  system_enabled: boolean;
 }
 
 interface HeaderProps {
@@ -61,6 +55,7 @@ export function Header({ userEmail }: HeaderProps) {
   };
 
   const handleCompanyChange = (companyId: string) => {
+    if (companyId === selectedCompanyId) return;
     setSelectedCompanyId(companyId);
     localStorage.setItem('autogtm_selected_company', companyId);
     window.dispatchEvent(new Event('autogtm_company_changed'));
@@ -83,27 +78,43 @@ export function Header({ userEmail }: HeaderProps) {
           
           {!loading && (
             <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-gray-400" />
+              <span className="flex items-center gap-1 text-gray-400">
+                <Building2 className="h-4 w-4" />
+                {companies.length > 0 && (
+                  <span className="text-xs font-medium">({companies.length})</span>
+                )}
+              </span>
               {companies.length > 0 ? (
-                <Select value={selectedCompanyId || undefined} onValueChange={handleCompanyChange}>
-                  <SelectTrigger className="w-[200px] h-8">
-                    <SelectValue placeholder="Select company" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {companies.map((company) => (
-                      <SelectItem key={company.id} value={company.id}>
-                        {company.name}
-                      </SelectItem>
-                    ))}
-                    <div className="border-t my-1" />
-                    <Link href="/app/setup" className="block">
-                      <div className="relative flex cursor-pointer select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground">
-                        <Plus className="absolute left-2 h-4 w-4" />
-                        Add New Company
-                      </div>
-                    </Link>
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-1 rounded-full bg-gray-100 p-1">
+                  {companies.map((company) => {
+                    const isSelected = company.id === selectedCompanyId;
+                    return (
+                      <button
+                        key={company.id}
+                        type="button"
+                        onClick={() => handleCompanyChange(company.id)}
+                        title={company.system_enabled ? 'System on' : 'System off'}
+                        className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                          isSelected
+                            ? 'bg-white text-gray-900 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-800'
+                        }`}
+                      >
+                        <span
+                          className={`h-2 w-2 shrink-0 rounded-full ${company.system_enabled ? 'bg-green-500' : 'bg-gray-300'}`}
+                        />
+                        <span className="truncate max-w-[140px]">{company.name}</span>
+                      </button>
+                    );
+                  })}
+                  <Link
+                    href="/app/setup"
+                    title="Add new profile"
+                    className="flex items-center justify-center rounded-full px-2.5 py-1.5 text-gray-400 hover:text-gray-700"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Link>
+                </div>
               ) : (
                 <Link href="/app/setup">
                   <Button variant="outline" size="sm">
