@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Header, useSelectedCompany } from '@/components/Header';
@@ -31,6 +31,8 @@ import {
   RotateCcw,
   Save,
   ArrowDownWideNarrow,
+  Calendar,
+  ChevronLeft,
 } from 'lucide-react';
 import { AutopilotTab } from '@/components/AutopilotTab';
 
@@ -194,6 +196,9 @@ export function Dashboard({ userEmail }: DashboardProps) {
   const [leadFilter, setLeadFilter] = useState<'all' | 'suggested' | 'routed' | 'pending' | 'skipped'>('all');
   const [leadSearch, setLeadSearch] = useState('');
   const [leadSort, setLeadSort] = useState<'default' | 'score'>('default');
+  const [leadTimeView, setLeadTimeView] = useState<'daily' | 'weekly'>('weekly');
+  const [leadViewDate, setLeadViewDate] = useState<string>('');
+  const leadTimeViewInitialized = useRef(false);
   const [previewCampaign, setPreviewCampaign] = useState<{ campaign: Campaign; emails: CampaignEmail[]; leadId?: string } | null>(null);
   const [loadingCampaignPreview, setLoadingCampaignPreview] = useState(false);
   const [savingCampaignPreview, setSavingCampaignPreview] = useState(false);
@@ -215,11 +220,29 @@ export function Dashboard({ userEmail }: DashboardProps) {
 
   useEffect(() => {
     if (companyId) {
+      leadTimeViewInitialized.current = false;
       fetchData();
     } else {
       setLoading(false);
     }
   }, [companyId]);
+
+  useEffect(() => {
+    if (leadTimeViewInitialized.current || leads.length === 0) return;
+    leadTimeViewInitialized.current = true;
+
+    const today = new Date().toISOString().split('T')[0];
+    const hasLeadsToday = leads.some(l => l.created_at.split('T')[0] === today);
+
+    if (hasLeadsToday) {
+      setLeadTimeView('daily');
+      setLeadViewDate(today);
+    } else {
+      setLeadTimeView('weekly');
+      const dates = leads.map(l => l.created_at.split('T')[0]).sort((a, b) => b.localeCompare(a));
+      setLeadViewDate(dates[0] || today);
+    }
+  }, [leads]);
 
   useEffect(() => {
     if (!selectedLead) return;
@@ -682,10 +705,27 @@ export function Dashboard({ userEmail }: DashboardProps) {
     }
   };
 
+  // Filter leads by time view
+  const timeFilteredLeads = useMemo(() => {
+    if (leadTimeView === 'weekly') {
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const weekAgoStr = weekAgo.toISOString().split('T')[0];
+      return leads.filter(l => l.created_at.split('T')[0] >= weekAgoStr);
+    }
+    // daily
+    return leads.filter(l => l.created_at.split('T')[0] === leadViewDate);
+  }, [leads, leadTimeView, leadViewDate]);
+
+  const daysWithLeads = useMemo(() => {
+    const days = new Set(leads.map(l => l.created_at.split('T')[0]));
+    return Array.from(days).sort((a, b) => b.localeCompare(a));
+  }, [leads]);
+
   // Filter leads by selected query
   const byQuery = selectedQueryFilter === 'all'
-    ? leads
-    : leads.filter(l => l.query_id === selectedQueryFilter);
+    ? timeFilteredLeads
+    : timeFilteredLeads.filter(l => l.query_id === selectedQueryFilter);
   const searchTerm = leadSearch.trim().toLowerCase();
   const filteredLeads = searchTerm
     ? byQuery.filter(l => {
@@ -1511,6 +1551,60 @@ export function Dashboard({ userEmail }: DashboardProps) {
                               {label} ({filterCounts[key]})
                             </button>
                           ))}
+                          </div>
+
+                          <div className="flex items-center gap-1 ml-2 border-l border-gray-200 pl-2">
+                            <button
+                              onClick={() => setLeadTimeView('daily')}
+                              className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                leadTimeView === 'daily'
+                                  ? 'bg-gray-900 text-white'
+                                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+                              }`}
+                            >
+                              Daily
+                            </button>
+                            <button
+                              onClick={() => setLeadTimeView('weekly')}
+                              className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                leadTimeView === 'weekly'
+                                  ? 'bg-gray-900 text-white'
+                                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+                              }`}
+                            >
+                              Weekly
+                            </button>
+                            {leadTimeView === 'daily' && (
+                              <div className="flex items-center gap-1 ml-1">
+                                <button
+                                  onClick={() => {
+                                    const idx = daysWithLeads.indexOf(leadViewDate);
+                                    if (idx < daysWithLeads.length - 1) setLeadViewDate(daysWithLeads[idx + 1]);
+                                  }}
+                                  disabled={daysWithLeads.indexOf(leadViewDate) >= daysWithLeads.length - 1}
+                                  className="p-1 rounded text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                  title="Previous day with leads"
+                                >
+                                  <ChevronLeft className="h-3.5 w-3.5" />
+                                </button>
+                                <span className="text-xs text-gray-600 font-medium min-w-[70px] text-center">
+                                  {leadViewDate === new Date().toISOString().split('T')[0]
+                                    ? 'Today'
+                                    : new Date(leadViewDate + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    const idx = daysWithLeads.indexOf(leadViewDate);
+                                    if (idx > 0) setLeadViewDate(daysWithLeads[idx - 1]);
+                                  }}
+                                  disabled={daysWithLeads.indexOf(leadViewDate) <= 0}
+                                  className="p-1 rounded text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                  title="Next day with leads"
+                                >
+                                  <ChevronRight className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            )}
                           </div>
 
                         </div>
