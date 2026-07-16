@@ -109,6 +109,7 @@ interface Stats {
   queries: number;
   leads: number;
   campaigns: number;
+  outboundsToday: number;
 }
 
 interface Instruction {
@@ -162,7 +163,7 @@ export function Dashboard({ userEmail }: DashboardProps) {
   const [queries, setQueries] = useState<Query[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [stats, setStats] = useState<Stats>({ queries: 0, leads: 0, campaigns: 0 });
+  const [stats, setStats] = useState<Stats>({ queries: 0, leads: 0, campaigns: 0, outboundsToday: 0 });
   const [loading, setLoading] = useState(true);
   const [runningQueries, setRunningQueries] = useState<Record<string, { progress: number; found: number }>>({});
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -265,8 +266,11 @@ export function Dashboard({ userEmail }: DashboardProps) {
     const interval = setInterval(async () => {
       try {
         const fetches: Promise<any>[] = [fetch(`/api/leads?company_id=${companyId}`)];
-        if (hasPendingCampaign) fetches.push(fetch(`/api/campaigns?company_id=${companyId}`));
-        const [leadsRes, campaignsRes] = await Promise.all(fetches);
+        if (hasPendingCampaign) {
+          fetches.push(fetch(`/api/campaigns?company_id=${companyId}`));
+          fetches.push(fetch(`/api/stats?company_id=${companyId}`));
+        }
+        const [leadsRes, campaignsRes, statsRes] = await Promise.all(fetches);
         if (leadsRes.ok) {
           const data = await leadsRes.json();
           const freshLeads: Lead[] = data.leads || [];
@@ -279,6 +283,10 @@ export function Dashboard({ userEmail }: DashboardProps) {
         if (campaignsRes?.ok) {
           const data = await campaignsRes.json();
           setCampaigns(data.campaigns || []);
+        }
+        if (statsRes?.ok) {
+          const data = await statsRes.json();
+          setStats(data);
         }
       } catch {}
     }, 3000);
@@ -1012,6 +1020,15 @@ export function Dashboard({ userEmail }: DashboardProps) {
               </button>
             ))}
             <div className="ml-auto pr-4 flex items-center gap-3">
+              <span
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold ${
+                  stats.outboundsToday > 0 ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-400'
+                }`}
+                title="Outbounds sent today (Eastern Time)"
+              >
+                <Send className="h-3 w-3" />
+                {loading ? '—' : stats.outboundsToday} sent today
+              </span>
               <button
                 onClick={async () => {
                   if (!company || !companyId) return;
