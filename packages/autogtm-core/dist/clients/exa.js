@@ -24,7 +24,8 @@ export async function createWebset(params) {
         count: params.count || 25,
     };
     if (params.criteria && params.criteria.length > 0) {
-        searchParams.criteria = params.criteria.map((c) => ({ description: c }));
+        // Exa rejects websets with > 5 criteria (400 Validation Error)
+        searchParams.criteria = params.criteria.slice(0, 5).map((c) => ({ description: c }));
     }
     const websetParams = {
         search: searchParams,
@@ -53,6 +54,40 @@ export async function getWebsetItems(websetId) {
         result.push(extractItemData(item));
     }
     return result;
+}
+/**
+ * Run a plain Exa search and normalize the results into the same item shape the
+ * Websets pipeline already knows how to ingest.
+ */
+export async function searchPlainResults(params) {
+    const exa = getExaClient();
+    const query = params.criteria && params.criteria.length > 0
+        ? [params.query, ...params.criteria].join('\n')
+        : params.query;
+    const response = await exa.searchAndContents(query, {
+        numResults: params.count || 25,
+        text: { maxCharacters: 3000 },
+        livecrawl: 'fallback',
+    });
+    const items = response.results.map((result) => ({
+        id: result.id,
+        properties: {
+            url: result.url,
+            title: result.title || undefined,
+            description: result.text || undefined,
+            author: result.author,
+            publishedDate: result.publishedDate,
+            score: result.score,
+            image: result.image,
+            favicon: result.favicon,
+        },
+        enrichments: {},
+    }));
+    return {
+        requestId: response.requestId,
+        items,
+        totalItems: items.length,
+    };
 }
 /**
  * Extract and normalize data from a webset item
@@ -115,7 +150,8 @@ export async function refreshWebset(websetId, query, additionalCount, criteria) 
         behaviour: 'override',
     };
     if (criteria && criteria.length > 0) {
-        searchParams.criteria = criteria.map((c) => ({ description: c }));
+        // Exa rejects websets with > 5 criteria (400 Validation Error)
+        searchParams.criteria = criteria.slice(0, 5).map((c) => ({ description: c }));
     }
     await exa.websets.searches.create(websetId, searchParams);
     await waitForWebset(websetId);

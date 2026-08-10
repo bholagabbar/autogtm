@@ -19,6 +19,11 @@ export interface WebsetSearchResult {
     items: ExaWebsetItem[];
     totalItems: number;
 }
+export interface PlainSearchResult {
+    requestId: string;
+    items: ExaWebsetItem[];
+    totalItems: number;
+}
 /**
  * Create a new Exa Webset with search and optional enrichments
  */
@@ -31,6 +36,11 @@ export declare function waitForWebset(websetId: string, timeoutMs?: number): Pro
  * Get all items from a webset
  */
 export declare function getWebsetItems(websetId: string): Promise<ExaWebsetItem[]>;
+/**
+ * Run a plain Exa search and normalize the results into the same item shape the
+ * Websets pipeline already knows how to ingest.
+ */
+export declare function searchPlainResults(params: CreateWebsetParams): Promise<PlainSearchResult>;
 /**
  * Create a webset search for influencer/creator discovery with email enrichment
  */

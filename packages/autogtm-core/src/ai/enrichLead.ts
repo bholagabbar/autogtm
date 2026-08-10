@@ -1,17 +1,18 @@
 /**
- * AI-powered lead enrichment using OpenAI with web search
+ * AI-powered lead enrichment using an OpenAI-compatible provider
  * Takes raw lead data and company context, returns structured persona
+ * (web search available via OpenRouter `:online` model suffix)
  */
 
-import OpenAI from 'openai';
 import { z } from 'zod';
+import { getOpenAIClient, resolveModel } from './client';
 import type { EnrichedLeadData } from '../types';
+const AllowedCategorySchema = z.enum(['influencer', 'coach', 'blog', 'agency', 'podcast', 'other']);
 
 const EnrichedLeadSchema = z.object({
-  category: z.string().catch('other'),
+  category: AllowedCategorySchema.catch('other'),
   full_name: z.string().catch('Unknown'),
   title: z.string().catch(''),
-  bio: z.string().catch(''),
   expertise: z.array(z.string()).catch([]),
   social_links: z.record(z.unknown()).catch({}),
   total_audience: z.number().catch(0),
@@ -20,12 +21,6 @@ const EnrichedLeadSchema = z.object({
   promotion_fit_reason: z.string().catch(''),
   email: z.string().nullable().catch(null),
 });
-
-function getOpenAIClient(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY is required');
-  return new OpenAI({ apiKey });
-}
 
 export async function enrichLead(
   leadData: Record<string, unknown>,
@@ -71,13 +66,15 @@ Return JSON with these fields:
 
 Return ONLY valid JSON.`;
 
-  const response = await openai.responses.create({
-    model: 'gpt-4.1-mini',
-    tools: [{ type: 'web_search_preview' }],
-    input: `${systemPrompt}\n\n${userPrompt}`,
+  const response = await openai.chat.completions.create({
+    model: resolveModel('gpt-4.1-mini'),
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
   });
 
-  const responseText = response.output_text || '';
+  const responseText = response.choices[0]?.message?.content || '';
 
   let jsonStr = responseText;
   const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);

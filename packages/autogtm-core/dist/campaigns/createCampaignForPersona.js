@@ -9,7 +9,7 @@ function textToHtml(text) {
         .join('<div><br></div>');
 }
 export async function createDraftCampaignForLead(params) {
-    const { company, suggestedName, suggestedPersona, leadId, leadFullName, leadBio, leadCategory } = params;
+    const { company, resolvedEmailPrompt, suggestedName, suggestedPersona, leadId, leadFullName, leadBio, leadCategory } = params;
     // Generate email copy tailored to this lead persona
     const sequenceLength = company.default_sequence_length ?? 2;
     const personaContext = [
@@ -28,7 +28,7 @@ export async function createDraftCampaignForLead(params) {
         targetPersona: personaContext,
         tone: 'friendly',
         sequenceLength,
-        customPrompt: company.email_prompt,
+        customPrompt: resolvedEmailPrompt ?? company.email_prompt,
     });
     // Save draft campaign record in our DB
     const campaignName = `autogtm - ${suggestedName}`;
@@ -96,9 +96,11 @@ export async function sendDraftCampaignForLead(params) {
         body: textToHtml(email.body),
         delay: index === 0 ? 0 : email.delay_days,
     }));
+    const resolvedEmailList = fallbackCompanySendingEmails.length ? fallbackCompanySendingEmails : [process.env.INSTANTLY_SENDER_EMAIL || ''];
+    console.log('[sendDraft] emailList being sent to Instantly:', JSON.stringify(resolvedEmailList));
     const instantlyCampaign = await createInstantlyCampaign({
         name: campaign.name,
-        emailList: fallbackCompanySendingEmails.length ? fallbackCompanySendingEmails : [process.env.INSTANTLY_SENDER_EMAIL || ''],
+        emailList: resolvedEmailList,
         sequences,
     });
     await activateCampaign(instantlyCampaign.id);

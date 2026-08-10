@@ -6,6 +6,12 @@ export declare const CompanySchema: z.ZodObject<{
     description: z.ZodString;
     target_audience: z.ZodString;
     default_sequence_length: z.ZodDefault<z.ZodNumber>;
+    auto_add_enabled: z.ZodOptional<z.ZodBoolean>;
+    auto_add_min_fit_score: z.ZodOptional<z.ZodNumber>;
+    auto_add_daily_limit: z.ZodOptional<z.ZodNumber>;
+    auto_add_run_hour_utc: z.ZodOptional<z.ZodNumber>;
+    auto_add_digest_email: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    auto_add_regenerate_drafts: z.ZodOptional<z.ZodBoolean>;
     created_at: z.ZodString;
     updated_at: z.ZodString;
 }, "strip", z.ZodTypeAny, {
@@ -15,6 +21,12 @@ export declare const CompanySchema: z.ZodObject<{
     description?: string;
     target_audience?: string;
     default_sequence_length?: number;
+    auto_add_enabled?: boolean;
+    auto_add_min_fit_score?: number;
+    auto_add_daily_limit?: number;
+    auto_add_run_hour_utc?: number;
+    auto_add_digest_email?: string;
+    auto_add_regenerate_drafts?: boolean;
     created_at?: string;
     updated_at?: string;
 }, {
@@ -24,10 +36,111 @@ export declare const CompanySchema: z.ZodObject<{
     description?: string;
     target_audience?: string;
     default_sequence_length?: number;
+    auto_add_enabled?: boolean;
+    auto_add_min_fit_score?: number;
+    auto_add_daily_limit?: number;
+    auto_add_run_hour_utc?: number;
+    auto_add_digest_email?: string;
+    auto_add_regenerate_drafts?: boolean;
     created_at?: string;
     updated_at?: string;
 }>;
 export type Company = z.infer<typeof CompanySchema>;
+export declare const AutoAddRunBreakdownEntrySchema: z.ZodObject<{
+    campaignId: z.ZodString;
+    campaignName: z.ZodString;
+    count: z.ZodNumber;
+    avgFitScore: z.ZodNumber;
+}, "strip", z.ZodTypeAny, {
+    campaignId?: string;
+    campaignName?: string;
+    count?: number;
+    avgFitScore?: number;
+}, {
+    campaignId?: string;
+    campaignName?: string;
+    count?: number;
+    avgFitScore?: number;
+}>;
+export type AutoAddRunBreakdownEntry = z.infer<typeof AutoAddRunBreakdownEntrySchema>;
+export declare const AutoAddRunSchema: z.ZodObject<{
+    id: z.ZodString;
+    company_id: z.ZodString;
+    run_started_at: z.ZodString;
+    run_completed_at: z.ZodNullable<z.ZodString>;
+    leads_considered: z.ZodDefault<z.ZodNumber>;
+    leads_added: z.ZodDefault<z.ZodNumber>;
+    leads_skipped: z.ZodDefault<z.ZodNumber>;
+    min_fit_score: z.ZodNumber;
+    daily_limit: z.ZodNumber;
+    breakdown: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        campaignId: z.ZodString;
+        campaignName: z.ZodString;
+        count: z.ZodNumber;
+        avgFitScore: z.ZodNumber;
+    }, "strip", z.ZodTypeAny, {
+        campaignId?: string;
+        campaignName?: string;
+        count?: number;
+        avgFitScore?: number;
+    }, {
+        campaignId?: string;
+        campaignName?: string;
+        count?: number;
+        avgFitScore?: number;
+    }>, "many">>;
+    added_lead_ids: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+    skip_reasons: z.ZodDefault<z.ZodRecord<z.ZodString, z.ZodNumber>>;
+    digest_sent: z.ZodDefault<z.ZodBoolean>;
+    digest_error: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    error: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    trigger: z.ZodDefault<z.ZodEnum<["cron", "manual"]>>;
+}, "strip", z.ZodTypeAny, {
+    id?: string;
+    company_id?: string;
+    run_started_at?: string;
+    run_completed_at?: string;
+    leads_considered?: number;
+    leads_added?: number;
+    leads_skipped?: number;
+    min_fit_score?: number;
+    daily_limit?: number;
+    breakdown?: {
+        campaignId?: string;
+        campaignName?: string;
+        count?: number;
+        avgFitScore?: number;
+    }[];
+    added_lead_ids?: string[];
+    skip_reasons?: Record<string, number>;
+    digest_sent?: boolean;
+    digest_error?: string;
+    error?: string;
+    trigger?: "cron" | "manual";
+}, {
+    id?: string;
+    company_id?: string;
+    run_started_at?: string;
+    run_completed_at?: string;
+    leads_considered?: number;
+    leads_added?: number;
+    leads_skipped?: number;
+    min_fit_score?: number;
+    daily_limit?: number;
+    breakdown?: {
+        campaignId?: string;
+        campaignName?: string;
+        count?: number;
+        avgFitScore?: number;
+    }[];
+    added_lead_ids?: string[];
+    skip_reasons?: Record<string, number>;
+    digest_sent?: boolean;
+    digest_error?: string;
+    error?: string;
+    trigger?: "cron" | "manual";
+}>;
+export type AutoAddRun = z.infer<typeof AutoAddRunSchema>;
 export declare const ExaQuerySchema: z.ZodObject<{
     id: z.ZodString;
     company_id: z.ZodString;

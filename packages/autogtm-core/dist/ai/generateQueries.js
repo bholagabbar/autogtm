@@ -2,8 +2,8 @@
  * AI-powered Exa query generation
  * Generates search queries and criteria based on company profile
  */
-import OpenAI from 'openai';
 import { z } from 'zod';
+import { getOpenAIClient, resolveModel } from './client';
 const QueryResponseSchema = z.object({
     queries: z.array(z.object({
         query: z.string(),
@@ -11,13 +11,6 @@ const QueryResponseSchema = z.object({
         rationale: z.string(),
     })),
 });
-function getOpenAIClient() {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-        throw new Error('OPENAI_API_KEY is required');
-    }
-    return new OpenAI({ apiKey });
-}
 /**
  * Generate Exa search queries based on company profile
  */
@@ -58,7 +51,7 @@ Generate queries that will help find people who:
 
 Focus on finding micro-influencers, content creators, and active professionals in the relevant space.`;
     const response = await openai.chat.completions.create({
-        model: 'gpt-4o',
+        model: resolveModel('gpt-4o'),
         messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
@@ -94,7 +87,7 @@ Results Quality: ${params.resultsQuality || 'unknown'}
 
 Please refine this query to get better results.`;
     const response = await openai.chat.completions.create({
-        model: 'gpt-4o',
+        model: resolveModel('gpt-4o'),
         messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },

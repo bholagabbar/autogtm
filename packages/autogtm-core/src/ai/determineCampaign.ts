@@ -5,8 +5,8 @@
  * create a new campaign draft, or skip.
  */
 
-import OpenAI from 'openai';
 import { z } from 'zod';
+import { getOpenAIClient, resolveModel } from './client';
 import type { Lead, CampaignWithStats, Company, CampaignRoutingDecision } from '../types';
 
 const RoutingDecisionSchema = z.discriminatedUnion('action', [
@@ -21,14 +21,6 @@ const RoutingDecisionSchema = z.discriminatedUnion('action', [
     reason: z.string(),
   }),
 ]);
-
-function getOpenAIClient(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY is required');
-  }
-  return new OpenAI({ apiKey });
-}
 
 export interface DetermineCampaignParams {
   lead: Pick<Lead,
@@ -106,7 +98,7 @@ ${campaignSummaries.length > 0
     : 'Not used for routing in this mode.'}`;
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: resolveModel('gpt-4o-mini'),
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },

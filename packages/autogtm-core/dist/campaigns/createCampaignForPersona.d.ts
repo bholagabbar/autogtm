@@ -5,6 +5,7 @@ export interface CreateCampaignForPersonaParams {
         default_sequence_length?: number;
         email_prompt?: string | null;
     };
+    resolvedEmailPrompt?: string | null;
     suggestedName: string;
     suggestedPersona: string;
     leadId: string;

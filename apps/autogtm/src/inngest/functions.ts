@@ -1043,10 +1043,17 @@ export const enrichLeadJob = inngest.createFunction(
 
     logger.info(`Enriching lead ${leadId}`);
 
-    // Mark as enriching
+    // Preserve canonical state across retries: once a lead has been enriched,
+    // later retries should not flip it back to `enriching`.
+    const { data: existingLead } = await supabase
+      .from('leads')
+      .select('enriched_at')
+      .eq('id', leadId)
+      .single();
+
     await supabase
       .from('leads')
-      .update({ enrichment_status: 'enriching' })
+      .update({ enrichment_status: existingLead?.enriched_at ? 'enriched' : 'enriching' })
       .eq('id', leadId);
 
     // Get company context

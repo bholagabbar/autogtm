@@ -4,20 +4,13 @@
  * 1. FOCUSED: Generate query specifically for a new instruction
  * 2. EXPLORATION: No new instructions, creatively explore new angles
  */
-import OpenAI from 'openai';
 import { z } from 'zod';
+import { getOpenAIClient, resolveModel } from './client';
 const SingleQuerySchema = z.object({
     query: z.string(),
     criteria: z.array(z.string()),
     rationale: z.string(),
 });
-function getOpenAIClient() {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-        throw new Error('OPENAI_API_KEY is required');
-    }
-    return new OpenAI({ apiKey });
-}
 /**
  * Generate a query SPECIFICALLY for a given instruction
  * Uses web search to research the company and target audience
@@ -55,12 +48,14 @@ Target Audience: ${params.company.targetAudience}
 "${params.instruction}"
 
 First, research the company website and the target segment. Then generate ONE query that DIRECTLY targets what the user is asking for. Be specific and precise.`;
-    const response = await openai.responses.create({
-        model: 'gpt-4.1-mini',
-        tools: [{ type: 'web_search_preview' }],
-        input: `${systemPrompt}\n\n${userPrompt}`,
+    const response = await openai.chat.completions.create({
+        model: resolveModel('gpt-4.1-mini'),
+        messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+        ],
     });
-    const responseText = response.output_text || '';
+    const responseText = response.choices[0]?.message?.content || '';
     // Extract JSON from response
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
@@ -121,12 +116,14 @@ ${params.company.agentNotes ? `Notes: ${params.company.agentNotes}` : ''}
 ${pastQueriesContext}
 
 Research the company and the space, then generate ONE query that explores a COMPLETELY DIFFERENT angle. Be creative and specific.`;
-    const response = await openai.responses.create({
-        model: 'gpt-4.1-mini',
-        tools: [{ type: 'web_search_preview' }],
-        input: `${systemPrompt}\n\n${userPrompt}`,
+    const response = await openai.chat.completions.create({
+        model: resolveModel('gpt-4.1-mini'),
+        messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+        ],
     });
-    const responseText = response.output_text || '';
+    const responseText = response.choices[0]?.message?.content || '';
     // Extract JSON from response
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {

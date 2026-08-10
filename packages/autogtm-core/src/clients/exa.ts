@@ -35,6 +35,12 @@ export interface WebsetSearchResult {
   totalItems: number;
 }
 
+export interface PlainSearchResult {
+  requestId: string;
+  items: ExaWebsetItem[];
+  totalItems: number;
+}
+
 /**
  * Create a new Exa Webset with search and optional enrichments
  */
@@ -82,6 +88,43 @@ export async function getWebsetItems(websetId: string): Promise<ExaWebsetItem[]>
     result.push(extractItemData(item));
   }
   return result;
+}
+/**
+ * Run a plain Exa search and normalize the results into the same item shape the
+ * Websets pipeline already knows how to ingest.
+ */
+export async function searchPlainResults(params: CreateWebsetParams): Promise<PlainSearchResult> {
+  const exa = getExaClient();
+  const query = params.criteria && params.criteria.length > 0
+    ? [params.query, ...params.criteria].join('\n')
+    : params.query;
+
+  const response = await exa.searchAndContents(query, {
+    numResults: params.count || 25,
+    text: { maxCharacters: 3000 },
+    livecrawl: 'fallback',
+  });
+
+  const items: ExaWebsetItem[] = response.results.map((result) => ({
+    id: result.id,
+    properties: {
+      url: result.url,
+      title: result.title || undefined,
+      description: result.text || undefined,
+      author: result.author,
+      publishedDate: result.publishedDate,
+      score: result.score,
+      image: result.image,
+      favicon: result.favicon,
+    },
+    enrichments: {},
+  }));
+
+  return {
+    requestId: response.requestId,
+    items,
+    totalItems: items.length,
+  };
 }
 
 /**
