@@ -274,6 +274,32 @@ export const ManualSendEventSchema = z.object({
 });
 export type ManualSendEvent = z.infer<typeof ManualSendEventSchema>;
 
+// Company sending domain — dev-safe state only, no real DNS mutation.
+export const CompanyDomainSchema = z.object({
+  id: z.string().uuid(),
+  company_id: z.string().uuid(),
+  domain: z.string(),
+  verification_status: z.enum(['unverified', 'verification_pending', 'verified', 'dns_error']),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
+});
+export type CompanyDomain = z.infer<typeof CompanyDomainSchema>;
+
+// Company mailbox — dev-safe state only, no real provisioning/SMTP.
+export const CompanyMailboxSchema = z.object({
+  id: z.string().uuid(),
+  company_id: z.string().uuid(),
+  provider: z.string(),
+  label: z.string(),
+  connection_status: z.enum(['unconnected', 'credentials_saved', 'verified', 'connection_error']),
+  warmup_state: z.enum(['not_started', 'warming', 'ready', 'paused']),
+  warmup_day: z.number(),
+  daily_cap: z.number(),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
+});
+export type CompanyMailbox = z.infer<typeof CompanyMailboxSchema>;
+
 // AI Generation types
 export interface GeneratedQuery {
   query: string;

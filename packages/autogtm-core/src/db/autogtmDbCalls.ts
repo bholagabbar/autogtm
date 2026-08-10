@@ -18,6 +18,8 @@ import type {
   AutoAddRunBreakdownEntry,
   LeadDraft,
   ManualSendEvent,
+  CompanyDomain,
+  CompanyMailbox,
 } from '../types';
 import { getCampaignAnalytics } from '../clients/instantly';
 
@@ -841,4 +843,94 @@ export async function createManualSendEvent(params: {
 
 export async function markLeadDraftSent(draftId: string): Promise<LeadDraft> {
   return updateLeadDraft(draftId, { status: 'sent_manual' });
+}
+
+// ============ Company Domains / Mailboxes / Warmup (dev-safe state) ============
+
+export async function createCompanyDomain(params: {
+  company_id: string;
+  domain: string;
+  verification_status?: 'unverified' | 'verification_pending' | 'verified' | 'dns_error';
+}): Promise<CompanyDomain> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('company_domains')
+    .insert({
+      company_id: params.company_id,
+      domain: params.domain,
+      verification_status: params.verification_status ?? 'verification_pending',
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as CompanyDomain;
+}
+
+export async function getCompanyDomains(companyId: string): Promise<CompanyDomain[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('company_domains')
+    .select('*')
+    .eq('company_id', companyId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []) as CompanyDomain[];
+}
+
+export async function createCompanyMailbox(params: {
+  company_id: string;
+  label: string;
+  provider?: string;
+  connection_status?: 'unconnected' | 'credentials_saved' | 'verified' | 'connection_error';
+  warmup_state?: 'not_started' | 'warming' | 'ready' | 'paused';
+  warmup_day?: number;
+  daily_cap?: number;
+}): Promise<CompanyMailbox> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('company_mailboxes')
+    .insert({
+      company_id: params.company_id,
+      label: params.label,
+      provider: params.provider ?? 'smtp',
+      connection_status: params.connection_status ?? 'credentials_saved',
+      warmup_state: params.warmup_state ?? 'not_started',
+      warmup_day: params.warmup_day ?? 0,
+      daily_cap: params.daily_cap ?? 0,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as CompanyMailbox;
+}
+
+export async function getCompanyMailboxes(companyId: string): Promise<CompanyMailbox[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('company_mailboxes')
+    .select('*')
+    .eq('company_id', companyId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []) as CompanyMailbox[];
+}
+
+export async function updateCompanyMailbox(
+  mailboxId: string,
+  updates: Partial<{
+    connection_status: 'unconnected' | 'credentials_saved' | 'verified' | 'connection_error';
+    warmup_state: 'not_started' | 'warming' | 'ready' | 'paused';
+    warmup_day: number;
+    daily_cap: number;
+  }>
+): Promise<CompanyMailbox> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('company_mailboxes')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', mailboxId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as CompanyMailbox;
 }

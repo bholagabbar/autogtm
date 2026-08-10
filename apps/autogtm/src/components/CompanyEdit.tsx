@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { ArrowLeft, Loader2, Save, Trash2, Globe } from 'lucide-react';
+import { DomainConnectionPanel, CompanyDomainView } from '@/components/company/DomainConnectionPanel';
+import { MailboxConnectionPanel, CompanyMailboxView } from '@/components/company/MailboxConnectionPanel';
 
 interface CompanyEditProps {
   companyId: string;
@@ -30,8 +32,25 @@ export function CompanyEdit({ companyId }: CompanyEditProps) {
     target_audience: '',
   });
 
+  const [domains, setDomains] = useState<CompanyDomainView[]>([]);
+  const [mailboxes, setMailboxes] = useState<CompanyMailboxView[]>([]);
+
+  const fetchSendingState = async () => {
+    try {
+      const [dRes, mRes] = await Promise.all([
+        fetch(`/api/companies/${companyId}/domains`),
+        fetch(`/api/companies/${companyId}/mailboxes`),
+      ]);
+      if (dRes.ok) setDomains((await dRes.json()).domains || []);
+      if (mRes.ok) setMailboxes((await mRes.json()).mailboxes || []);
+    } catch {
+      // dev-safe panels degrade gracefully if routes are unavailable
+    }
+  };
+
   useEffect(() => {
     fetchCompany();
+    fetchSendingState();
   }, [companyId]);
 
   const fetchCompany = async () => {
@@ -217,7 +236,11 @@ export function CompanyEdit({ companyId }: CompanyEditProps) {
               </Button>
             </div>
           </div>
-          <div className="p-6">
+          <div className="p-6 space-y-6">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <DomainConnectionPanel companyId={companyId} domains={domains} onChanged={fetchSendingState} />
+              <MailboxConnectionPanel companyId={companyId} mailboxes={mailboxes} onChanged={fetchSendingState} />
+            </div>
             <form onSubmit={handleSave} className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="name">Company Name</Label>
