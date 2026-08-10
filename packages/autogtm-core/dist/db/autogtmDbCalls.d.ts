@@ -3,7 +3,7 @@
  * Uses Supabase as the data store
  */
 import { SupabaseClient } from '@supabase/supabase-js';
-import type { Company, ExaQuery, WebsetRun, Lead, Campaign, CampaignWithStats, CampaignEmail, DailyDigest, AllowedUser, AutoAddRun, AutoAddRunBreakdownEntry } from '../types';
+import type { Company, ExaQuery, WebsetRun, Lead, Campaign, CampaignWithStats, CampaignEmail, DailyDigest, AllowedUser, AutoAddRun, AutoAddRunBreakdownEntry, LeadDraft, ManualSendEvent, CompanyDomain, CompanyMailbox, Workspace } from '../types';
 export declare function getSupabaseClient(): SupabaseClient;
 export declare function createCompany(company: Omit<Company, 'id' | 'created_at' | 'updated_at'>): Promise<Company>;
 export declare function getCompany(id: string): Promise<Company | null>;
@@ -101,3 +101,51 @@ export declare function completeAutoAddRun(runId: string, updates: {
     error?: string | null;
 }): Promise<void>;
 export declare function getRecentAutoAddRuns(companyId: string, limit?: number): Promise<AutoAddRun[]>;
+export declare function createLeadDraft(params: {
+    lead_id: string;
+    subject: string;
+    body: string;
+}): Promise<LeadDraft>;
+export declare function getLeadDraft(draftId: string): Promise<LeadDraft | null>;
+export declare function getDraftsForLead(leadId: string): Promise<LeadDraft[]>;
+export declare function updateLeadDraft(draftId: string, updates: {
+    subject?: string;
+    body?: string;
+    status?: 'draft' | 'sent_manual';
+}): Promise<LeadDraft>;
+export declare function createManualSendEvent(params: {
+    lead_id: string;
+    draft_id: string;
+    mailbox_label?: string | null;
+    notes?: string | null;
+}): Promise<ManualSendEvent>;
+export declare function markLeadDraftSent(draftId: string): Promise<LeadDraft>;
+export declare function createCompanyDomain(params: {
+    company_id: string;
+    domain: string;
+    verification_status?: 'unverified' | 'verification_pending' | 'verified' | 'dns_error';
+}): Promise<CompanyDomain>;
+export declare function getCompanyDomains(companyId: string): Promise<CompanyDomain[]>;
+export declare function createCompanyMailbox(params: {
+    company_id: string;
+    label: string;
+    provider?: string;
+    connection_status?: 'unconnected' | 'credentials_saved' | 'verified' | 'connection_error';
+    warmup_state?: 'not_started' | 'warming' | 'ready' | 'paused';
+    warmup_day?: number;
+    daily_cap?: number;
+}): Promise<CompanyMailbox>;
+export declare function getCompanyMailboxes(companyId: string): Promise<CompanyMailbox[]>;
+export declare function updateCompanyMailbox(mailboxId: string, updates: Partial<{
+    connection_status: 'unconnected' | 'credentials_saved' | 'verified' | 'connection_error';
+    warmup_state: 'not_started' | 'warming' | 'ready' | 'paused';
+    warmup_day: number;
+    daily_cap: number;
+}>): Promise<CompanyMailbox>;
+export declare function createWorkspace(params: {
+    name: string;
+    ownerUserId?: string | null;
+}): Promise<Workspace>;
+export declare function getOrCreateDefaultWorkspace(ownerUserId?: string | null): Promise<Workspace>;
+export declare function backfillCompanyWorkspace(): Promise<number>;
+export declare function setCompanyWorkspace(companyId: string, workspaceId: string): Promise<void>;

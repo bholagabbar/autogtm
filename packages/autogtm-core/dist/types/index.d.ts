@@ -12,6 +12,7 @@ export declare const CompanySchema: z.ZodObject<{
     auto_add_run_hour_utc: z.ZodOptional<z.ZodNumber>;
     auto_add_digest_email: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     auto_add_regenerate_drafts: z.ZodOptional<z.ZodBoolean>;
+    workspace_id: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     created_at: z.ZodString;
     updated_at: z.ZodString;
 }, "strip", z.ZodTypeAny, {
@@ -27,6 +28,7 @@ export declare const CompanySchema: z.ZodObject<{
     auto_add_run_hour_utc?: number;
     auto_add_digest_email?: string;
     auto_add_regenerate_drafts?: boolean;
+    workspace_id?: string;
     created_at?: string;
     updated_at?: string;
 }, {
@@ -42,10 +44,48 @@ export declare const CompanySchema: z.ZodObject<{
     auto_add_run_hour_utc?: number;
     auto_add_digest_email?: string;
     auto_add_regenerate_drafts?: boolean;
+    workspace_id?: string;
     created_at?: string;
     updated_at?: string;
 }>;
 export type Company = z.infer<typeof CompanySchema>;
+export declare const WorkspaceSchema: z.ZodObject<{
+    id: z.ZodString;
+    name: z.ZodString;
+    owner_user_id: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    created_at: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    id?: string;
+    name?: string;
+    created_at?: string;
+    owner_user_id?: string;
+}, {
+    id?: string;
+    name?: string;
+    created_at?: string;
+    owner_user_id?: string;
+}>;
+export type Workspace = z.infer<typeof WorkspaceSchema>;
+export declare const WorkspaceMemberSchema: z.ZodObject<{
+    id: z.ZodString;
+    workspace_id: z.ZodString;
+    user_id: z.ZodString;
+    role: z.ZodEnum<["owner", "admin", "member"]>;
+    created_at: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    id?: string;
+    workspace_id?: string;
+    created_at?: string;
+    user_id?: string;
+    role?: "owner" | "admin" | "member";
+}, {
+    id?: string;
+    workspace_id?: string;
+    created_at?: string;
+    user_id?: string;
+    role?: "owner" | "admin" | "member";
+}>;
+export type WorkspaceMember = z.infer<typeof WorkspaceMemberSchema>;
 export declare const AutoAddRunBreakdownEntrySchema: z.ZodObject<{
     campaignId: z.ZodString;
     campaignName: z.ZodString;
@@ -547,8 +587,8 @@ export declare const DailyDigestSchema: z.ZodObject<{
     sent_at: z.ZodString;
 }, "strip", z.ZodTypeAny, {
     id?: string;
-    company_id?: string;
     date?: string;
+    company_id?: string;
     emails_sent?: number;
     opens?: number;
     replies?: number;
@@ -556,8 +596,8 @@ export declare const DailyDigestSchema: z.ZodObject<{
     sent_at?: string;
 }, {
     id?: string;
-    company_id?: string;
     date?: string;
+    company_id?: string;
     emails_sent?: number;
     opens?: number;
     replies?: number;
@@ -612,6 +652,116 @@ export interface InstantlySequenceStep {
     body: string;
     delay?: number;
 }
+export declare const LeadDraftSchema: z.ZodObject<{
+    id: z.ZodString;
+    lead_id: z.ZodString;
+    subject: z.ZodString;
+    body: z.ZodString;
+    status: z.ZodEnum<["draft", "sent_manual"]>;
+    created_at: z.ZodString;
+    updated_at: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    id?: string;
+    created_at?: string;
+    updated_at?: string;
+    status?: "draft" | "sent_manual";
+    subject?: string;
+    body?: string;
+    lead_id?: string;
+}, {
+    id?: string;
+    created_at?: string;
+    updated_at?: string;
+    status?: "draft" | "sent_manual";
+    subject?: string;
+    body?: string;
+    lead_id?: string;
+}>;
+export type LeadDraft = z.infer<typeof LeadDraftSchema>;
+export declare const ManualSendEventSchema: z.ZodObject<{
+    id: z.ZodString;
+    lead_id: z.ZodString;
+    draft_id: z.ZodString;
+    mailbox_label: z.ZodNullable<z.ZodString>;
+    notes: z.ZodNullable<z.ZodString>;
+    sent_at: z.ZodString;
+    created_at: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    id?: string;
+    created_at?: string;
+    sent_at?: string;
+    lead_id?: string;
+    draft_id?: string;
+    mailbox_label?: string;
+    notes?: string;
+}, {
+    id?: string;
+    created_at?: string;
+    sent_at?: string;
+    lead_id?: string;
+    draft_id?: string;
+    mailbox_label?: string;
+    notes?: string;
+}>;
+export type ManualSendEvent = z.infer<typeof ManualSendEventSchema>;
+export declare const CompanyDomainSchema: z.ZodObject<{
+    id: z.ZodString;
+    company_id: z.ZodString;
+    domain: z.ZodString;
+    verification_status: z.ZodEnum<["unverified", "verification_pending", "verified", "dns_error"]>;
+    created_at: z.ZodString;
+    updated_at: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    id?: string;
+    created_at?: string;
+    updated_at?: string;
+    company_id?: string;
+    domain?: string;
+    verification_status?: "unverified" | "verification_pending" | "verified" | "dns_error";
+}, {
+    id?: string;
+    created_at?: string;
+    updated_at?: string;
+    company_id?: string;
+    domain?: string;
+    verification_status?: "unverified" | "verification_pending" | "verified" | "dns_error";
+}>;
+export type CompanyDomain = z.infer<typeof CompanyDomainSchema>;
+export declare const CompanyMailboxSchema: z.ZodObject<{
+    id: z.ZodString;
+    company_id: z.ZodString;
+    provider: z.ZodString;
+    label: z.ZodString;
+    connection_status: z.ZodEnum<["unconnected", "credentials_saved", "verified", "connection_error"]>;
+    warmup_state: z.ZodEnum<["not_started", "warming", "ready", "paused"]>;
+    warmup_day: z.ZodNumber;
+    daily_cap: z.ZodNumber;
+    created_at: z.ZodString;
+    updated_at: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    id?: string;
+    created_at?: string;
+    updated_at?: string;
+    company_id?: string;
+    provider?: string;
+    label?: string;
+    connection_status?: "verified" | "unconnected" | "credentials_saved" | "connection_error";
+    warmup_state?: "paused" | "not_started" | "warming" | "ready";
+    warmup_day?: number;
+    daily_cap?: number;
+}, {
+    id?: string;
+    created_at?: string;
+    updated_at?: string;
+    company_id?: string;
+    provider?: string;
+    label?: string;
+    connection_status?: "verified" | "unconnected" | "credentials_saved" | "connection_error";
+    warmup_state?: "paused" | "not_started" | "warming" | "ready";
+    warmup_day?: number;
+    daily_cap?: number;
+}>;
+export type CompanyMailbox = z.infer<typeof CompanyMailboxSchema>;
 export interface GeneratedQuery {
     query: string;
     criteria: string[];

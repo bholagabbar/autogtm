@@ -55,3 +55,22 @@ All hard checks passed. (HTTP checks are best-effort against a live dev server.)
 - The `superpowers:*` planning skills referenced by the plan are not installed in this environment; the plan was executed directly as a senior-engineer TDD pass.
 - Route unit tests mock the DB/AI layers so they run without infra or secrets (dev-safe).
 - HTTP checks in the verification script are best-effort; to exercise them, run `npm run dev` + local Supabase with a populated `.env.local`.
+
+## Build caveat (environmental, not a regression)
+
+`npm run build` (full Next.js production build) cannot complete in this verification
+environment because `@supabase/ssr` throws during static prerender of `/login` when
+Supabase env vars are absent (no `.env.local` present here). This is pre-existing and
+independent of the overnight changes — the same failure occurs on a clean checkout
+without credentials. It is resolved in the normal dev environment where `.env.local`
+exists. The plan's defined verification gates (`npm run check-types` and `npm run test`)
+both pass, which is what the overnight verification targets.
+
+## Commit inventory (overnight v1 foundation)
+
+1. `fix: stabilize local lead pipeline and add regressions` — vitest config, two regression tests, `SearchesTab`/`LeadsTab` extraction, status route + UI error surfacing.
+2. `feat: add lead draft generation and persistence` — `lead_outreach_drafts`, draft route + test, `LeadDraftDialog`, `Dialog` primitive.
+3. `feat: track manual outreach sends` — `manual_send_events`, manual-send route + test, dashboard wiring.
+4. `feat: add dev-safe domain and mailbox state models` — `company_domains`/`company_mailboxes`, three routes (domains/mailboxes/warmup), three panels, company-edit wiring.
+5. `feat: add minimal workspace scaffolding` — `workspaces`/`workspace_members`, `companies.workspace_id`, backfill, workspaces route + test.
+6. `docs: add overnight verification report` — verification script + written report + docs updates.
