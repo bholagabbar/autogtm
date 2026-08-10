@@ -33,6 +33,8 @@ import {
   ArrowDownWideNarrow,
 } from 'lucide-react';
 import { AutopilotTab } from '@/components/AutopilotTab';
+import { SearchesTab } from '@/components/dashboard/SearchesTab';
+import { LeadsTab } from '@/components/dashboard/LeadsTab';
 
 interface DashboardProps {
   userEmail: string;
@@ -529,6 +531,51 @@ export function Dashboard({ userEmail }: DashboardProps) {
         next.delete(leadId);
         return next;
       });
+    }
+  };
+
+  const skipLead = async (leadId: string) => {
+    try {
+      const res = await fetch(`/api/leads/${leadId}/skip`, { method: 'POST' });
+      if (res.ok) {
+        setLeads(leads.map(l => l.id === leadId ? { ...l, campaign_status: 'skipped' as const, suggested_campaign_id: null, skip_reason: 'Manually skipped' } : l));
+      }
+    } catch {}
+  };
+
+  const unskipLead = async (leadId: string) => {
+    try {
+      const res = await fetch(`/api/leads/${leadId}/unskip`, { method: 'POST' });
+      if (res.ok) {
+        setLeads(leads.map(l => l.id === leadId ? { ...l, campaign_status: 'pending' as const, skip_reason: null } : l));
+      }
+    } catch {}
+  };
+
+  const generateSearch = async () => {
+    if (!companyId) return;
+    setGeneratingQueries(true);
+    try {
+      const res = await fetch('/api/queries/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId }),
+      });
+      if (res.ok) {
+        toast({ title: 'Generating search', description: 'New search will appear shortly' });
+        setTimeout(() => fetchData(), 5000);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        toast({
+          title: 'Error',
+          description: body.error || 'Failed to generate queries',
+          variant: 'destructive',
+        });
+      }
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error?.message || 'Failed to generate queries' });
+    } finally {
+      setGeneratingQueries(false);
     }
   };
 
@@ -1338,401 +1385,41 @@ export function Dashboard({ userEmail }: DashboardProps) {
 
                 {/* Queries Tab */}
                 {activeTab === 'searches' && (
-                  <div>
-                    <div className="flex justify-between items-center mb-4">
-                      <p className="text-sm text-gray-500">AI-generated searches based on your instructions, runs automatically daily at 9AM to discover new leads</p>
-                      <Button
-                        size="sm"
-                        disabled={generatingQueries}
-                        onClick={async () => {
-                          if (!companyId) return;
-                          setGeneratingQueries(true);
-                          try {
-                            const res = await fetch('/api/queries/generate', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ companyId }),
-                            });
-                            if (res.ok) {
-                              toast({ title: 'Generating search', description: 'New search will appear shortly' });
-                              setTimeout(() => fetchData(), 5000);
-                            } else {
-                              throw new Error();
-                            }
-                          } catch {
-                            toast({ variant: 'destructive', title: 'Failed to generate search' });
-                          } finally {
-                            setGeneratingQueries(false);
-                          }
-                        }}
-                      >
-                        {generatingQueries ? (
-                          <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" /> Generating...</>
-                        ) : (
-                          <><Sparkles className="h-3 w-3 mr-1.5" /> Generate Search</>
-                        )}
-                      </Button>
-                    </div>
-                    {queries.length === 0 ? (
-                      <div className="py-12 text-center">
-                        <Search className="h-10 w-10 mx-auto mb-4 text-gray-300" />
-                        <p className="text-gray-500">No searches yet. Add instructions and generate your first search.</p>
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead>
-                            <tr className="border-b bg-gray-50">
-                              <th className="text-left py-3 px-4 font-medium text-gray-500 text-sm">Status</th>
-                              <th className="text-left py-3 px-4 font-medium text-gray-500 text-sm">Query</th>
-                              <th className="text-left py-3 px-4 font-medium text-gray-500 text-sm">Last Run</th>
-                              <th className="text-right py-3 px-4 font-medium text-gray-500 text-sm">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {queries.map((query) => (
-                              <tr key={query.id} className="border-b hover:bg-gray-50">
-                                <td className="py-3 px-4">
-                                  {getStatusIcon(query.status)}
-                                </td>
-                                <td className="py-3 px-4">
-                                  <p className="font-medium text-gray-900">{query.query}</p>
-                                  <div className="flex flex-wrap items-center gap-1 mt-1">
-                                    {query.company_updates?.content ? (
-                                      <span className="text-xs px-2 py-0.5 rounded bg-indigo-50 text-indigo-600 border border-indigo-100">
-                                        From: {query.company_updates.content.length > 40 
-                                          ? query.company_updates.content.substring(0, 40) + '...' 
-                                          : query.company_updates.content}
-                                      </span>
-                                    ) : (
-                                      <span className="text-xs px-2 py-0.5 rounded bg-purple-50 text-purple-600 border border-purple-100">
-                                        Exploration
-                                      </span>
-                                    )}
-                                    {query.criteria?.slice(0, 2).map((c, i) => (
-                                      <span key={i} className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">{c}</span>
-                                    ))}
-                                  </div>
-                                </td>
-                                <td className="py-3 px-4 text-sm text-gray-500">
-                                  {formatLastRun(query.last_run_at)}
-                                </td>
-                                <td className="py-3 px-4">
-                                  <div className="flex justify-end items-center gap-2">
-                                    {runningQueries[query.id] ? (
-                                      <div className="flex items-center gap-2 text-sm text-gray-600 min-w-[100px]">
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                        <span>
-                                          {runningQueries[query.id].found > 0 
-                                            ? `Found ${runningQueries[query.id].found}...`
-                                            : 'Searching...'}
-                                        </span>
-                                      </div>
-                                    ) : !query.webset_runs?.[0]?.webset_id ? (
-                                      <Button
-                                        size="sm"
-                                        onClick={() => runQuery(query.id)}
-                                        disabled={query.status === 'running'}
-                                      >
-                                        <RefreshCw className="h-4 w-4 mr-1" />
-                                        Run
-                                      </Button>
-                                    ) : null}
-                                    {query.webset_runs?.[0]?.webset_id && (
-                                      <a
-                                        href={`https://websets.exa.ai/websets/${query.webset_runs[0].webset_id}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                      >
-                                        <Button size="sm" variant="outline">
-                                          <ExternalLink className="h-4 w-4 mr-1" />
-                                          Exa
-                                        </Button>
-                                      </a>
-                                    )}
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => deleteQuery(query.id)}
-                                      className="text-red-500 hover:text-red-600"
-                                      disabled={!!runningQueries[query.id]}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
+                  <SearchesTab
+                    queries={queries}
+                    companyId={companyId}
+                    generatingQueries={generatingQueries}
+                    runningQueries={runningQueries}
+                    onGenerate={generateSearch}
+                    onRun={runQuery}
+                    onDelete={deleteQuery}
+                    onRefresh={fetchData}
+                  />
                 )}
 
                 {/* Leads Tab */}
-                {activeTab === 'leads' && (() => {
-                  const suggestedLeads = filteredLeads.filter(l => l.suggested_campaign_id && l.campaign_status !== 'routed');
-                  const routedLeads = filteredLeads.filter(l => l.campaign_status === 'routed');
-                  const pendingLeads = filteredLeads.filter(l => !l.suggested_campaign_id && l.campaign_status !== 'routed' && l.campaign_status !== 'skipped');
-                  const skippedLeads = filteredLeads.filter(l => l.campaign_status === 'skipped');
-
-                  const filterCounts = {
-                    all: filteredLeads.length,
-                    suggested: suggestedLeads.length,
-                    routed: routedLeads.length,
-                    pending: pendingLeads.length,
-                    skipped: skippedLeads.length,
-                  };
-
-                  const sortedAll = [...filteredLeads].sort((a, b) => {
-                    const order = (l: typeof a) =>
-                      l.suggested_campaign_id && l.campaign_status !== 'routed' ? 0 :
-                      l.campaign_status === 'routed' ? 1 :
-                      l.enrichment_status === 'enriching' ? 3 :
-                      l.campaign_status === 'skipped' ? 4 : 2;
-                    return order(a) - order(b);
-                  });
-                  const baseDisplay = leadFilter === 'all' ? sortedAll :
-                    leadFilter === 'suggested' ? suggestedLeads :
-                    leadFilter === 'routed' ? routedLeads :
-                    leadFilter === 'skipped' ? skippedLeads : pendingLeads;
-                  const displayLeads = leadSort === 'score'
-                    ? [...baseDisplay].sort((a, b) => (b.promotion_fit_score ?? -1) - (a.promotion_fit_score ?? -1))
-                    : baseDisplay;
-
-                  return (
-                    <div>
-                      {/* Filter bar */}
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex gap-1">
-                          {([
-                            { key: 'all' as const, label: 'All' },
-                            { key: 'suggested' as const, label: 'Ready to Add' },
-                            { key: 'routed' as const, label: 'In Campaign' },
-                            { key: 'pending' as const, label: 'Pending' },
-                            { key: 'skipped' as const, label: 'Skipped' },
-                          ]).map(({ key, label }) => (
-                            <button
-                              key={key}
-                              onClick={() => setLeadFilter(key)}
-                              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                                leadFilter === key
-                                  ? 'bg-gray-900 text-white'
-                                  : key === 'suggested' && filterCounts[key] > 0
-                                    ? 'text-indigo-700 bg-indigo-50 hover:bg-indigo-100'
-                                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-                              }`}
-                            >
-                              {label} ({filterCounts[key]})
-                            </button>
-                          ))}
-                          </div>
-
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="relative">
-                            <Search className="h-3.5 w-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                            <input
-                              type="text"
-                              value={leadSearch}
-                              onChange={(e) => setLeadSearch(e.target.value)}
-                              placeholder="Search name, bio, category..."
-                              className="text-xs border border-gray-200 rounded-lg pl-7 pr-7 py-1.5 bg-white text-gray-700 w-56 focus:outline-none focus:ring-1 focus:ring-gray-300"
-                            />
-                            {leadSearch && (
-                              <button
-                                onClick={() => setLeadSearch('')}
-                                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                                aria-label="Clear search"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => setLeadSort(leadSort === 'score' ? 'default' : 'score')}
-                            title={leadSort === 'score' ? 'Sorted by fit score (click to reset)' : 'Sort by fit score (high to low)'}
-                            aria-label="Sort by fit score"
-                            className={`p-1.5 rounded-lg border transition-colors ${
-                              leadSort === 'score'
-                                ? 'border-gray-900 bg-gray-900 text-white hover:bg-gray-800'
-                                : 'border-gray-200 bg-white text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-                            }`}
-                          >
-                            <ArrowDownWideNarrow className="h-3.5 w-3.5" />
-                          </button>
-                          {queries.length > 0 && (
-                            <select
-                              value={selectedQueryFilter}
-                              onChange={(e) => setSelectedQueryFilter(e.target.value)}
-                              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700"
-                            >
-                              <option value="all">All Searches ({leads.length})</option>
-                              {queries.map((q) => {
-                                const count = leads.filter(l => l.query_id === q.id).length;
-                                return (
-                                  <option key={q.id} value={q.id}>
-                                    {q.query.slice(0, 30)}{q.query.length > 30 ? '...' : ''} ({count})
-                                  </option>
-                                );
-                              })}
-                            </select>
-                          )}
-                        </div>
-                      </div>
-
-                      {displayLeads.length === 0 ? (
-                        <div className="py-12 text-center">
-                          <Users className="h-10 w-10 mx-auto mb-4 text-gray-300" />
-                          <p className="text-gray-500">
-                            {leadFilter === 'suggested' ? 'No leads ready to add to campaigns yet.' :
-                             leadFilter === 'routed' ? 'No leads in campaigns yet.' :
-                             leadFilter === 'skipped' ? 'No skipped leads.' :
-                             leadFilter === 'pending' ? 'No pending leads.' :
-                             'No leads yet. Run a search to find leads.'}
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {displayLeads.map((lead) => {
-                            const hasSuggestedCampaign = !!lead.suggested_campaign_id;
-                            const isEnriched = lead.enrichment_status === 'enriched';
-                            const isUnenriched = lead.enrichment_status === 'pending' || lead.enrichment_status === 'failed';
-
-                            return (
-                              <div
-                                key={lead.id}
-                                className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                                  hasSuggestedCampaign && lead.campaign_status !== 'routed'
-                                    ? 'border-indigo-200 bg-indigo-50/30 hover:border-indigo-300'
-                                    : 'border-gray-200 hover:border-gray-300'
-                                }`}
-                                onClick={() => setSelectedLead(lead)}
-                              >
-                                <div className="flex items-center gap-3">
-                                  {/* Left: Fit score */}
-                                  <div className="shrink-0 flex flex-col items-center justify-center w-[40px]">
-                                    {lead.promotion_fit_score ? (
-                                      <span className={`text-sm font-bold ${
-                                        lead.promotion_fit_score >= 7 ? 'text-green-600' :
-                                        lead.promotion_fit_score >= 4 ? 'text-yellow-600' : 'text-red-500'
-                                      }`}>
-                                        {lead.promotion_fit_score}/10
-                                      </span>
-                                    ) : (
-                                      <span className="text-xs text-gray-300">--</span>
-                                    )}
-                                  </div>
-
-                                  {/* Center: Name, Title, Email, Search */}
-                                  <div className="min-w-0 flex-1">
-                                    <p className="font-medium text-sm text-gray-900 truncate">
-                                      {lead.full_name || lead.name || 'Unknown'}
-                                    </p>
-                                    {lead.title && (
-                                      <p className="text-xs text-gray-500 truncate">{lead.title}</p>
-                                    )}
-                                    {lead.exa_queries?.query && (
-                                      <div className="flex items-center gap-1 mt-1">
-                                        <Search className="h-3 w-3 text-gray-300 shrink-0" />
-                                        <p className="text-xs text-gray-400 truncate" title={lead.exa_queries.query}>
-                                          {lead.exa_queries.query}
-                                        </p>
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  {/* Right: Campaign suggestion / status */}
-                                  <div className="shrink-0 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                    {lead.campaign_status === 'routed' ? (
-                                      <div className="flex items-center gap-2">
-                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-green-50 text-green-700">
-                                          <CheckCircle2 className="h-3 w-3" />
-                                          Added
-                                        </span>
-                                      </div>
-                                    ) : routingLeads.has(lead.id) ? (
-                                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-amber-50 text-amber-600">
-                                        <Loader2 className="h-3 w-3 animate-spin" />
-                                        Starting...
-                                      </span>
-                                    ) : hasSuggestedCampaign ? (
-                                      <div className="flex items-center gap-1.5">
-                                        <button
-                                          onClick={() => setSelectedLead(lead)}
-                                          className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-md bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-medium whitespace-nowrap transition-colors"
-                                        >
-                                          <Check className="h-3 w-3" />
-                                          Ready to Review
-                                        </button>
-                                        <button
-                                          onClick={async () => {
-                                            try {
-                                              const res = await fetch(`/api/leads/${lead.id}/skip`, { method: 'POST' });
-                                              if (res.ok) {
-                                                setLeads(leads.map(l => l.id === lead.id ? { ...l, campaign_status: 'skipped' as const, suggested_campaign_id: null, skip_reason: 'Manually skipped' } : l));
-                                              }
-                                            } catch {}
-                                          }}
-                                          className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-100 font-medium whitespace-nowrap transition-colors"
-                                        >
-                                          <X className="h-3 w-3" />
-                                          Skip
-                                        </button>
-                                      </div>
-                                    ) : lead.campaign_status === 'skipped' ? (
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-xs text-gray-400">Skipped{lead.skip_reason ? `: ${lead.skip_reason}` : ''}</span>
-                                        <button
-                                          onClick={async () => {
-                                            try {
-                                              const supabase = await fetch(`/api/leads/${lead.id}/unskip`, { method: 'POST' });
-                                              if (supabase.ok) {
-                                                setLeads(leads.map(l => l.id === lead.id ? { ...l, campaign_status: 'pending' as const, skip_reason: null } : l));
-                                              }
-                                            } catch {}
-                                          }}
-                                          className="text-xs px-2 py-1 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-100 font-medium transition-colors"
-                                        >
-                                          Undo
-                                        </button>
-                                      </div>
-                                    ) : lead.enrichment_status === 'enriching' ? (
-                                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-indigo-50 text-indigo-600">
-                                        <Loader2 className="h-3 w-3 animate-spin" />
-                                        Enriching
-                                      </span>
-                                    ) : isEnriched && lead.email ? (
-                                      <button
-                                        onClick={() => suggestCampaign(lead.id)}
-                                        disabled={suggestingLeads.has(lead.id)}
-                                        className="text-xs px-3 py-1.5 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 font-medium"
-                                      >
-                                        {suggestingLeads.has(lead.id) ? (
-                                          <span className="flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Generating...</span>
-                                        ) : 'Generate Campaign'}
-                                      </button>
-                                    ) : isUnenriched ? (
-                                      <button
-                                        onClick={() => enrichLead(lead.id)}
-                                        disabled={enrichingLeads.has(lead.id)}
-                                        className="text-xs px-3 py-1.5 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 font-medium"
-                                      >
-                                        {enrichingLeads.has(lead.id) ? '...' : 'Enrich'}
-                                      </button>
-                                    ) : null}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
+                {activeTab === 'leads' && (
+                  <LeadsTab
+                    leads={leads}
+                    queries={queries}
+                    leadFilter={leadFilter}
+                    setLeadFilter={setLeadFilter}
+                    leadSearch={leadSearch}
+                    setLeadSearch={setLeadSearch}
+                    leadSort={leadSort}
+                    setLeadSort={setLeadSort}
+                    selectedQueryFilter={selectedQueryFilter}
+                    setSelectedQueryFilter={setSelectedQueryFilter}
+                    enrichingLeads={enrichingLeads}
+                    routingLeads={routingLeads}
+                    suggestingLeads={suggestingLeads}
+                    onSelectLead={setSelectedLead}
+                    onSkip={skipLead}
+                    onUnskip={unskipLead}
+                    onSuggestCampaign={suggestCampaign}
+                    onEnrich={enrichLead}
+                  />
+                )}
 
                 {/* Campaigns Tab */}
                 {activeTab === 'campaigns' && (

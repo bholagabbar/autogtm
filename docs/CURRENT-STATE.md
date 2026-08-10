@@ -51,9 +51,15 @@ Last updated: 2026-08-10
 
 ### UI / product issues
 - The signup flow sometimes needs a reload before `/app` redirect is visible
-- The setup page previously swallowed generation errors instead of showing a toast; error surfacing should still be reviewed after recent provider changes
+- Query-generation failures now surface a visible error toast (handled in `Dashboard.generateSearch` and the `/api/queries/generate` error path)
 - The dashboard still has Webset-shaped wording in places even though the backend now uses plain Exa search
 - The app still assumes a single logical tenant in the data model
+
+### Regression safety net
+- `vitest` suite added; run with `npm test` (or `npm run test <path>`). Current guards:
+  - `startQueryRun` flips a query to `failed` when the Exa search throws (never left `running`)
+  - enriched leads keep `enriched` status across retry (no regression to `enriching`)
+- `SearchesTab` and `LeadsTab` extracted into `src/components/dashboard/` to shrink `Dashboard.tsx`
 
 ### Workflow gaps
 - No domain connection flow yet
