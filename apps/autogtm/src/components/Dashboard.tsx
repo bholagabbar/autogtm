@@ -579,6 +579,25 @@ export function Dashboard({ userEmail }: DashboardProps) {
     }
   };
 
+  const markLeadSent = async (lead: Lead, draft: { id: string }) => {
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/manual-send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draftId: draft.id, mailboxLabel: 'Zoho outreach', notes: '' }),
+      });
+      if (res.ok) {
+        toast({ title: 'Marked sent', description: 'Recorded as a manual send from your mailbox.' });
+        fetchData();
+      } else {
+        const body = await res.json().catch(() => ({}));
+        toast({ variant: 'destructive', title: 'Error', description: body.error || 'Failed to record send' });
+      }
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error?.message || 'Failed to record send' });
+    }
+  };
+
   const openCampaignPreview = async (campaignId: string, leadId?: string) => {
     const campaign = campaigns.find(c => c.id === campaignId);
     if (!campaign) return;
@@ -1418,6 +1437,7 @@ export function Dashboard({ userEmail }: DashboardProps) {
                     onUnskip={unskipLead}
                     onSuggestCampaign={suggestCampaign}
                     onEnrich={enrichLead}
+                    onMarkSent={markLeadSent}
                   />
                 )}
 

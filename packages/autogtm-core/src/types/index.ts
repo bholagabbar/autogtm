@@ -262,6 +262,18 @@ export const LeadDraftSchema = z.object({
 });
 export type LeadDraft = z.infer<typeof LeadDraftSchema>;
 
+// Manual send event — recorded when the operator sends a draft from their mailbox.
+export const ManualSendEventSchema = z.object({
+  id: z.string().uuid(),
+  lead_id: z.string().uuid(),
+  draft_id: z.string().uuid(),
+  mailbox_label: z.string().nullable(),
+  notes: z.string().nullable(),
+  sent_at: z.string().datetime(),
+  created_at: z.string().datetime(),
+});
+export type ManualSendEvent = z.infer<typeof ManualSendEventSchema>;
+
 // AI Generation types
 export interface GeneratedQuery {
   query: string;

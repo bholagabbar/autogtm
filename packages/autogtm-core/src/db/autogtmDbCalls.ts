@@ -17,6 +17,7 @@ import type {
   AutoAddRun,
   AutoAddRunBreakdownEntry,
   LeadDraft,
+  ManualSendEvent,
 } from '../types';
 import { getCampaignAnalytics } from '../clients/instantly';
 
@@ -813,4 +814,31 @@ export async function updateLeadDraft(
     .single();
   if (error) throw error;
   return data as LeadDraft;
+}
+
+// ============ Manual Send Events ============
+
+export async function createManualSendEvent(params: {
+  lead_id: string;
+  draft_id: string;
+  mailbox_label?: string | null;
+  notes?: string | null;
+}): Promise<ManualSendEvent> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('manual_send_events')
+    .insert({
+      lead_id: params.lead_id,
+      draft_id: params.draft_id,
+      mailbox_label: params.mailbox_label ?? null,
+      notes: params.notes ?? null,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as ManualSendEvent;
+}
+
+export async function markLeadDraftSent(draftId: string): Promise<LeadDraft> {
+  return updateLeadDraft(draftId, { status: 'sent_manual' });
 }
