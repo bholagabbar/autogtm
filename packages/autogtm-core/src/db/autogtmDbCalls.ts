@@ -16,6 +16,7 @@ import type {
   AllowedUser,
   AutoAddRun,
   AutoAddRunBreakdownEntry,
+  LeadDraft,
 } from '../types';
 import { getCampaignAnalytics } from '../clients/instantly';
 
@@ -758,4 +759,58 @@ export async function getRecentAutoAddRuns(companyId: string, limit = 10): Promi
     .limit(limit);
   if (error) throw error;
   return data || [];
+}
+
+// ============ Lead Outreach Drafts ============
+
+export async function createLeadDraft(params: {
+  lead_id: string;
+  subject: string;
+  body: string;
+}): Promise<LeadDraft> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('lead_outreach_drafts')
+    .insert({ ...params, status: 'draft' })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as LeadDraft;
+}
+
+export async function getLeadDraft(draftId: string): Promise<LeadDraft | null> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('lead_outreach_drafts')
+    .select()
+    .eq('id', draftId)
+    .single();
+  if (error && error.code !== 'PGRST116') throw error;
+  return (data as LeadDraft) || null;
+}
+
+export async function getDraftsForLead(leadId: string): Promise<LeadDraft[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('lead_outreach_drafts')
+    .select()
+    .eq('lead_id', leadId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data as LeadDraft[]) || [];
+}
+
+export async function updateLeadDraft(
+  draftId: string,
+  updates: { subject?: string; body?: string; status?: 'draft' | 'sent_manual' }
+): Promise<LeadDraft> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('lead_outreach_drafts')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', draftId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as LeadDraft;
 }

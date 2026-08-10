@@ -1,6 +1,7 @@
 'use client';
 
 import { Users, Search, ArrowDownWideNarrow, X, CheckCircle2, Loader2, Check } from 'lucide-react';
+import { LeadDraftDialog, LeadDraftView } from '@/components/dashboard/LeadDraftDialog';
 
 export interface LeadRow {
   id: string;
@@ -53,7 +54,7 @@ interface LeadsTabProps {
   onUnskip: (leadId: string) => void;
   onSuggestCampaign: (leadId: string) => void;
   onEnrich: (leadId: string) => void;
-  onDraft?: (lead: LeadRow) => void;
+  onMarkSent?: (lead: LeadRow, draft: LeadDraftView) => void;
 }
 
 export function LeadsTab(props: LeadsTabProps) {
@@ -76,6 +77,7 @@ export function LeadsTab(props: LeadsTabProps) {
     onUnskip,
     onSuggestCampaign,
     onEnrich,
+    onMarkSent,
   } = props;
 
   const filteredLeads = selectedQueryFilter === 'all'
@@ -327,6 +329,12 @@ export function LeadsTab(props: LeadsTabProps) {
                         {enrichingLeads.has(lead.id) ? '...' : 'Enrich'}
                       </button>
                     ) : null}
+                    <LeadDraftDialog
+                      leadId={lead.id}
+                      leadName={lead.full_name || lead.name || 'Unknown'}
+                      onMarkSent={onMarkSent ? (draft) => onMarkSent!(lead, draft) : undefined}
+                      onChanged={() => onSelectLead(lead)}
+                    />
                   </div>
                 </div>
               </div>

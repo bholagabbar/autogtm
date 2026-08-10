@@ -250,6 +250,18 @@ export interface InstantlySequenceStep {
   delay?: number; // delay in days
 }
 
+// Lead outreach draft — AI-generated cold email persisted per lead.
+export const LeadDraftSchema = z.object({
+  id: z.string().uuid(),
+  lead_id: z.string().uuid(),
+  subject: z.string(),
+  body: z.string(),
+  status: z.enum(['draft', 'sent_manual']),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
+});
+export type LeadDraft = z.infer<typeof LeadDraftSchema>;
+
 // AI Generation types
 export interface GeneratedQuery {
   query: string;
