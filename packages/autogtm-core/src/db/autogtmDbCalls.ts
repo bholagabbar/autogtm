@@ -20,6 +20,8 @@ import type {
   ManualSendEvent,
   CompanyDomain,
   CompanyMailbox,
+  Workspace,
+  WorkspaceMember,
 } from '../types';
 import { getCampaignAnalytics } from '../clients/instantly';
 
@@ -933,4 +935,69 @@ export async function updateCompanyMailbox(
     .single();
   if (error) throw error;
   return data as CompanyMailbox;
+}
+
+// ============ Workspaces (minimal multi-tenant boundary) ============
+
+export async function createWorkspace(params: {
+  name: string;
+  ownerUserId?: string | null;
+}): Promise<Workspace> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('workspaces')
+    .insert({ name: params.name, owner_user_id: params.ownerUserId ?? null })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Workspace;
+}
+
+export async function getOrCreateDefaultWorkspace(ownerUserId?: string | null): Promise<Workspace> {
+  const supabase = getSupabaseClient();
+  const DEFAULT_NAME = 'Anchored Uniforms Workspace';
+  const { data: existing } = await supabase
+    .from('workspaces')
+    .select('*')
+    .eq('name', DEFAULT_NAME)
+    .limit(1)
+    .maybeSingle();
+  if (existing) return existing as Workspace;
+
+  const { data, error } = await supabase
+    .from('workspaces')
+    .insert({ name: DEFAULT_NAME, owner_user_id: ownerUserId ?? null })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Workspace;
+}
+
+// Dev-safe backfill: ensure every company without a workspace_id is assigned
+// to the default operator workspace. Called from company routes / startup.
+export async function backfillCompanyWorkspace(): Promise<number> {
+  const supabase = getSupabaseClient();
+  const ws = await getOrCreateDefaultWorkspace();
+
+  const { data: orphans } = await supabase
+    .from('companies')
+    .select('id')
+    .is('workspace_id', null);
+  if (!orphans || orphans.length === 0) return 0;
+
+  const { error } = await supabase
+    .from('companies')
+    .update({ workspace_id: ws.id })
+    .in('id', orphans.map((c) => c.id));
+  if (error) throw error;
+  return orphans.length;
+}
+
+export async function setCompanyWorkspace(companyId: string, workspaceId: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('companies')
+    .update({ workspace_id: workspaceId })
+    .eq('id', companyId);
+  if (error) throw error;
 }

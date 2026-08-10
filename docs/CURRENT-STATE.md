@@ -62,12 +62,26 @@ Last updated: 2026-08-10
 - `SearchesTab` and `LeadsTab` extracted into `src/components/dashboard/` to shrink `Dashboard.tsx`
 
 ### Workflow gaps
-- No domain connection flow yet
-- No mailbox connection flow yet
-- No warmup tracker yet
-- No manual-send tracking yet
 - No inbox / reply sync yet
 - No billing / credits yet
+
+### Multi-tenant scaffolding (new in overnight v1)
+- `workspaces` + `workspace_members` tables added (migration 0007)
+- `companies.workspace_id` column added and backfilled to a default operator workspace ("Anchored Uniforms Workspace") on company list
+- `POST /api/workspaces` creates a workspace and returns its id
+- v1 stays operator-only; the boundary exists so future tenant work is safe
+- Dev-safe domain/mailbox/warmup state models added (migration 0006):
+  - `company_domains` (verification_status) — no real DNS mutation
+  - `company_mailboxes` (connection_status, warmup_state/day/cap) — no real provisioning/SMTP
+  - `POST /api/companies/[id]/domains|mailboxes` + `POST /api/companies/[id]/warmup` (dev-safe, local-only)
+  - Company edit page shows Domain + Mailbox panels with warmup controls
+
+### Manual outreach workflow (new in overnight v1)
+- `lead_outreach_drafts` stores generated cold-email drafts (migration 0004)
+- `POST /api/leads/[id]/draft` generates + persists a draft; `PATCH` saves edits
+- `LeadDraftDialog` lets operators review/edit/draft per lead
+- `manual_send_events` records manual sends (migration 0005)
+- `POST /api/leads/[id]/manual-send` marks a draft sent and records the event
 
 ### Things to verify again before shipping anything real
 - Auto campaign suggestion after enrichment (it partially worked during local testing, but should be re-verified cleanly)

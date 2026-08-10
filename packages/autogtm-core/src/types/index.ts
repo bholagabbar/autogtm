@@ -15,10 +15,29 @@ export const CompanySchema = z.object({
   auto_add_run_hour_utc: z.number().min(0).max(23).optional(),
   auto_add_digest_email: z.string().nullable().optional(),
   auto_add_regenerate_drafts: z.boolean().optional(),
+  workspace_id: z.string().uuid().nullable().optional(),
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
 });
 export type Company = z.infer<typeof CompanySchema>;
+
+// Workspace — minimal multi-tenant boundary (v1 operator-only).
+export const WorkspaceSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  owner_user_id: z.string().uuid().nullable().optional(),
+  created_at: z.string().datetime(),
+});
+export type Workspace = z.infer<typeof WorkspaceSchema>;
+
+export const WorkspaceMemberSchema = z.object({
+  id: z.string().uuid(),
+  workspace_id: z.string().uuid(),
+  user_id: z.string(),
+  role: z.enum(['owner', 'admin', 'member']),
+  created_at: z.string().datetime(),
+});
+export type WorkspaceMember = z.infer<typeof WorkspaceMemberSchema>;
 
 // Auto Add Run — audit record for each daily sweep
 export const AutoAddRunBreakdownEntrySchema = z.object({
