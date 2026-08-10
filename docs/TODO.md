@@ -2,6 +2,17 @@
 
 This is the prioritized work list for the repo.
 
+## Done in overnight v1 foundation (2026-08-10)
+
+- [x] **Stabilize pipeline** — regression tests for query `failed` + enrichment retry; `SearchesTab`/`LeadsTab` extracted; setup/query errors surface in UI.
+- [x] **Lead -> draft email** — `POST /api/leads/[id]/draft` generates + persists to `lead_outreach_drafts`; `LeadDraftDialog` review/edit; `PATCH` saves edits.
+- [x] **Manual send workflow** — `POST /api/leads/[id]/manual-send` records `manual_send_events` + flips draft to `sent_manual`; status shown in dashboard.
+- [x] **Domain / mailbox / warmup state** (dev-safe, no live DNS/SMTP) — `company_domains`, `company_mailboxes` tables; routes + company-edit panels with warmup controls.
+- [x] **Minimal multi-tenant boundary** — `workspaces`, `workspace_members`, `companies.workspace_id`; default operator workspace backfill; `POST /api/workspaces`.
+- [x] **Verification** — `apps/autogtm/scripts/verify-overnight-local.mjs` + written report (10 vitest tests, tsc clean, migrations present).
+
+Remaining manual-outreach items (reply handling, status nuances) and all live-side effects (real DNS, SMTP, inbox sync, autopilot) are still TODO below.
+
 ## 1. Finish the manual-outreach MVP
 
 ### 1.1 Lead -> draft email
