@@ -16,6 +16,12 @@ import type {
   AllowedUser,
   AutoAddRun,
   AutoAddRunBreakdownEntry,
+  LeadDraft,
+  ManualSendEvent,
+  CompanyDomain,
+  CompanyMailbox,
+  Workspace,
+  WorkspaceMember,
 } from '../types';
 import { getCampaignAnalytics } from '../clients/instantly';
 
@@ -758,4 +764,240 @@ export async function getRecentAutoAddRuns(companyId: string, limit = 10): Promi
     .limit(limit);
   if (error) throw error;
   return data || [];
+}
+
+// ============ Lead Outreach Drafts ============
+
+export async function createLeadDraft(params: {
+  lead_id: string;
+  subject: string;
+  body: string;
+}): Promise<LeadDraft> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('lead_outreach_drafts')
+    .insert({ ...params, status: 'draft' })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as LeadDraft;
+}
+
+export async function getLeadDraft(draftId: string): Promise<LeadDraft | null> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('lead_outreach_drafts')
+    .select()
+    .eq('id', draftId)
+    .single();
+  if (error && error.code !== 'PGRST116') throw error;
+  return (data as LeadDraft) || null;
+}
+
+export async function getDraftsForLead(leadId: string): Promise<LeadDraft[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('lead_outreach_drafts')
+    .select()
+    .eq('lead_id', leadId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data as LeadDraft[]) || [];
+}
+
+export async function updateLeadDraft(
+  draftId: string,
+  updates: { subject?: string; body?: string; status?: 'draft' | 'sent_manual' }
+): Promise<LeadDraft> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('lead_outreach_drafts')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', draftId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as LeadDraft;
+}
+
+// ============ Manual Send Events ============
+
+export async function createManualSendEvent(params: {
+  lead_id: string;
+  draft_id: string;
+  mailbox_label?: string | null;
+  notes?: string | null;
+}): Promise<ManualSendEvent> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('manual_send_events')
+    .insert({
+      lead_id: params.lead_id,
+      draft_id: params.draft_id,
+      mailbox_label: params.mailbox_label ?? null,
+      notes: params.notes ?? null,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as ManualSendEvent;
+}
+
+export async function markLeadDraftSent(draftId: string): Promise<LeadDraft> {
+  return updateLeadDraft(draftId, { status: 'sent_manual' });
+}
+
+// ============ Company Domains / Mailboxes / Warmup (dev-safe state) ============
+
+export async function createCompanyDomain(params: {
+  company_id: string;
+  domain: string;
+  verification_status?: 'unverified' | 'verification_pending' | 'verified' | 'dns_error';
+}): Promise<CompanyDomain> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('company_domains')
+    .insert({
+      company_id: params.company_id,
+      domain: params.domain,
+      verification_status: params.verification_status ?? 'verification_pending',
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as CompanyDomain;
+}
+
+export async function getCompanyDomains(companyId: string): Promise<CompanyDomain[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('company_domains')
+    .select('*')
+    .eq('company_id', companyId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []) as CompanyDomain[];
+}
+
+export async function createCompanyMailbox(params: {
+  company_id: string;
+  label: string;
+  provider?: string;
+  connection_status?: 'unconnected' | 'credentials_saved' | 'verified' | 'connection_error';
+  warmup_state?: 'not_started' | 'warming' | 'ready' | 'paused';
+  warmup_day?: number;
+  daily_cap?: number;
+}): Promise<CompanyMailbox> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('company_mailboxes')
+    .insert({
+      company_id: params.company_id,
+      label: params.label,
+      provider: params.provider ?? 'smtp',
+      connection_status: params.connection_status ?? 'credentials_saved',
+      warmup_state: params.warmup_state ?? 'not_started',
+      warmup_day: params.warmup_day ?? 0,
+      daily_cap: params.daily_cap ?? 0,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as CompanyMailbox;
+}
+
+export async function getCompanyMailboxes(companyId: string): Promise<CompanyMailbox[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('company_mailboxes')
+    .select('*')
+    .eq('company_id', companyId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []) as CompanyMailbox[];
+}
+
+export async function updateCompanyMailbox(
+  mailboxId: string,
+  updates: Partial<{
+    connection_status: 'unconnected' | 'credentials_saved' | 'verified' | 'connection_error';
+    warmup_state: 'not_started' | 'warming' | 'ready' | 'paused';
+    warmup_day: number;
+    daily_cap: number;
+  }>
+): Promise<CompanyMailbox> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('company_mailboxes')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', mailboxId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as CompanyMailbox;
+}
+
+// ============ Workspaces (minimal multi-tenant boundary) ============
+
+export async function createWorkspace(params: {
+  name: string;
+  ownerUserId?: string | null;
+}): Promise<Workspace> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('workspaces')
+    .insert({ name: params.name, owner_user_id: params.ownerUserId ?? null })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Workspace;
+}
+
+export async function getOrCreateDefaultWorkspace(ownerUserId?: string | null): Promise<Workspace> {
+  const supabase = getSupabaseClient();
+  const DEFAULT_NAME = 'Anchored Uniforms Workspace';
+  const { data: existing } = await supabase
+    .from('workspaces')
+    .select('*')
+    .eq('name', DEFAULT_NAME)
+    .limit(1)
+    .maybeSingle();
+  if (existing) return existing as Workspace;
+
+  const { data, error } = await supabase
+    .from('workspaces')
+    .insert({ name: DEFAULT_NAME, owner_user_id: ownerUserId ?? null })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Workspace;
+}
+
+// Dev-safe backfill: ensure every company without a workspace_id is assigned
+// to the default operator workspace. Called from company routes / startup.
+export async function backfillCompanyWorkspace(): Promise<number> {
+  const supabase = getSupabaseClient();
+  const ws = await getOrCreateDefaultWorkspace();
+
+  const { data: orphans } = await supabase
+    .from('companies')
+    .select('id')
+    .is('workspace_id', null);
+  if (!orphans || orphans.length === 0) return 0;
+
+  const { error } = await supabase
+    .from('companies')
+    .update({ workspace_id: ws.id })
+    .in('id', orphans.map((c) => c.id));
+  if (error) throw error;
+  return orphans.length;
+}
+
+export async function setCompanyWorkspace(companyId: string, workspaceId: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('companies')
+    .update({ workspace_id: workspaceId })
+    .eq('id', companyId);
+  if (error) throw error;
 }

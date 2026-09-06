@@ -3,8 +3,8 @@
  * Creates personalized email sequences for outreach campaigns
  */
 
-import OpenAI from 'openai';
 import { z } from 'zod';
+import { getOpenAIClient, resolveModel } from './client';
 import type { GeneratedEmailSequence } from '../types';
 
 const EmailSequenceSchema = z.object({
@@ -49,14 +49,6 @@ function sanitizeSequence(sequence: GeneratedEmailSequence): GeneratedEmailSeque
         }
       : undefined,
   };
-}
-
-function getOpenAIClient(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY is required');
-  }
-  return new OpenAI({ apiKey });
 }
 
 export interface GenerateEmailParams {
@@ -156,7 +148,7 @@ Remember:
 - Keep tone human and conversational, not polished AI copy.`;
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-5-mini',
+    model: resolveModel('gpt-5-mini'),
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
@@ -200,7 +192,7 @@ Lead Context: ${params.leadContext || 'No additional context'}
 Personalize this email while keeping the core message intact.`;
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: resolveModel('gpt-4o-mini'),
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
@@ -254,7 +246,7 @@ ${params.replyRate < 0.05 ? 'Focus on making the CTA clearer and the value prop 
 Suggest improvements.`;
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
+    model: resolveModel('gpt-4o'),
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
@@ -318,7 +310,7 @@ ${params.feedback || 'Improve clarity and make it more personalized.'}
 Rewrite the sequence accordingly while keeping it founder-led and grounded.`;
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-5-mini',
+    model: resolveModel('gpt-5-mini'),
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },

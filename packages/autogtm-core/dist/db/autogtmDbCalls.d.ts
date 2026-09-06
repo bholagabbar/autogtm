@@ -3,7 +3,7 @@
  * Uses Supabase as the data store
  */
 import { SupabaseClient } from '@supabase/supabase-js';
-import type { Company, ExaQuery, WebsetRun, Lead, Campaign, CampaignWithStats, CampaignEmail, DailyDigest, AllowedUser } from '../types';
+import type { Company, ExaQuery, WebsetRun, Lead, Campaign, CampaignWithStats, CampaignEmail, DailyDigest, AllowedUser, AutoAddRun, AutoAddRunBreakdownEntry, LeadDraft, ManualSendEvent, CompanyDomain, CompanyMailbox, Workspace } from '../types';
 export declare function getSupabaseClient(): SupabaseClient;
 export declare function createCompany(company: Omit<Company, 'id' | 'created_at' | 'updated_at'>): Promise<Company>;
 export declare function getCompany(id: string): Promise<Company | null>;
@@ -55,3 +55,97 @@ export declare function getCompanyStats(companyId: string): Promise<{
     totalOpens: number;
     totalReplies: number;
 }>;
+/** Leads that qualify for the daily auto-add sweep for a given company. */
+export interface AutoAddEligibleLead {
+    id: string;
+    email: string;
+    full_name: string;
+    promotion_fit_score: number;
+    suggested_campaign_id: string;
+    category: string | null;
+    bio: string | null;
+    suggested_campaign_reason: string | null;
+}
+/** All companies with autopilot enabled AND the master system enabled, returning
+ *  only fields needed by the sweep. Gating on both makes Autopilot a strict
+ *  subset of System — turning System off guarantees the sweep is a no-op. */
+export declare function listAutoEnabledCompanies(): Promise<Array<Pick<Company, 'id' | 'name' | 'auto_add_enabled' | 'auto_add_min_fit_score' | 'auto_add_daily_limit' | 'auto_add_run_hour_utc' | 'auto_add_digest_email'>>>;
+/**
+ * Fetch up to `limit` leads eligible for auto-add, sorted by fit score desc then recency.
+ * A lead is eligible when it has a suggested campaign belonging to this company,
+ * a valid email + name, a fit score at or above the configured threshold, and is
+ * not yet routed/skipped.
+ *
+ * Two small queries beat one big one here: campaign ids first (indexed on company_id),
+ * then `leads` filtered by `suggested_campaign_id IN (...)` — all filtering server-side,
+ * no over-fetch, result count == `limit` at most.
+ */
+export declare function getEligibleLeadsForAutoAdd(companyId: string, minFitScore: number, limit: number): Promise<AutoAddEligibleLead[]>;
+/** Count of remaining Ready-to-Add leads at or above a fit threshold, used in digest footer. */
+export declare function countReadyToAddLeads(companyId: string, minFitScore: number): Promise<number>;
+export declare function createAutoAddRun(params: {
+    companyId: string;
+    minFitScore: number;
+    dailyLimit: number;
+    trigger: 'cron' | 'manual';
+}): Promise<AutoAddRun>;
+export declare function completeAutoAddRun(runId: string, updates: {
+    leads_considered?: number;
+    leads_added?: number;
+    leads_skipped?: number;
+    breakdown?: AutoAddRunBreakdownEntry[];
+    added_lead_ids?: string[];
+    skip_reasons?: Record<string, number>;
+    digest_sent?: boolean;
+    digest_error?: string | null;
+    error?: string | null;
+}): Promise<void>;
+export declare function getRecentAutoAddRuns(companyId: string, limit?: number): Promise<AutoAddRun[]>;
+export declare function createLeadDraft(params: {
+    lead_id: string;
+    subject: string;
+    body: string;
+}): Promise<LeadDraft>;
+export declare function getLeadDraft(draftId: string): Promise<LeadDraft | null>;
+export declare function getDraftsForLead(leadId: string): Promise<LeadDraft[]>;
+export declare function updateLeadDraft(draftId: string, updates: {
+    subject?: string;
+    body?: string;
+    status?: 'draft' | 'sent_manual';
+}): Promise<LeadDraft>;
+export declare function createManualSendEvent(params: {
+    lead_id: string;
+    draft_id: string;
+    mailbox_label?: string | null;
+    notes?: string | null;
+}): Promise<ManualSendEvent>;
+export declare function markLeadDraftSent(draftId: string): Promise<LeadDraft>;
+export declare function createCompanyDomain(params: {
+    company_id: string;
+    domain: string;
+    verification_status?: 'unverified' | 'verification_pending' | 'verified' | 'dns_error';
+}): Promise<CompanyDomain>;
+export declare function getCompanyDomains(companyId: string): Promise<CompanyDomain[]>;
+export declare function createCompanyMailbox(params: {
+    company_id: string;
+    label: string;
+    provider?: string;
+    connection_status?: 'unconnected' | 'credentials_saved' | 'verified' | 'connection_error';
+    warmup_state?: 'not_started' | 'warming' | 'ready' | 'paused';
+    warmup_day?: number;
+    daily_cap?: number;
+}): Promise<CompanyMailbox>;
+export declare function getCompanyMailboxes(companyId: string): Promise<CompanyMailbox[]>;
+export declare function updateCompanyMailbox(mailboxId: string, updates: Partial<{
+    connection_status: 'unconnected' | 'credentials_saved' | 'verified' | 'connection_error';
+    warmup_state: 'not_started' | 'warming' | 'ready' | 'paused';
+    warmup_day: number;
+    daily_cap: number;
+}>): Promise<CompanyMailbox>;
+export declare function createWorkspace(params: {
+    name: string;
+    ownerUserId?: string | null;
+}): Promise<Workspace>;
+export declare function getOrCreateDefaultWorkspace(ownerUserId?: string | null): Promise<Workspace>;
+export declare function backfillCompanyWorkspace(): Promise<number>;
+export declare function setCompanyWorkspace(companyId: string, workspaceId: string): Promise<void>;

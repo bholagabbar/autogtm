@@ -4,8 +4,8 @@
  * Given an enriched lead and company context, the agent decides:
  * create a new campaign draft, or skip.
  */
-import OpenAI from 'openai';
 import { z } from 'zod';
+import { getOpenAIClient, resolveModel } from './client';
 const RoutingDecisionSchema = z.discriminatedUnion('action', [
     z.object({
         action: z.literal('create_new'),
@@ -18,13 +18,6 @@ const RoutingDecisionSchema = z.discriminatedUnion('action', [
         reason: z.string(),
     }),
 ]);
-function getOpenAIClient() {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-        throw new Error('OPENAI_API_KEY is required');
-    }
-    return new OpenAI({ apiKey });
-}
 export async function determineCampaignForLead(params) {
     const { lead, campaigns, company } = params;
     // Quick guard: no email = skip
@@ -82,7 +75,7 @@ ${campaignSummaries.length > 0
         ? JSON.stringify(campaignSummaries, null, 2)
         : 'Not used for routing in this mode.'}`;
     const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: resolveModel('gpt-4o-mini'),
         messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },

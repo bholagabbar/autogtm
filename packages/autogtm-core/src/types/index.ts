@@ -15,10 +15,29 @@ export const CompanySchema = z.object({
   auto_add_run_hour_utc: z.number().min(0).max(23).optional(),
   auto_add_digest_email: z.string().nullable().optional(),
   auto_add_regenerate_drafts: z.boolean().optional(),
+  workspace_id: z.string().uuid().nullable().optional(),
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
 });
 export type Company = z.infer<typeof CompanySchema>;
+
+// Workspace — minimal multi-tenant boundary (v1 operator-only).
+export const WorkspaceSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  owner_user_id: z.string().uuid().nullable().optional(),
+  created_at: z.string().datetime(),
+});
+export type Workspace = z.infer<typeof WorkspaceSchema>;
+
+export const WorkspaceMemberSchema = z.object({
+  id: z.string().uuid(),
+  workspace_id: z.string().uuid(),
+  user_id: z.string(),
+  role: z.enum(['owner', 'admin', 'member']),
+  created_at: z.string().datetime(),
+});
+export type WorkspaceMember = z.infer<typeof WorkspaceMemberSchema>;
 
 // Auto Add Run — audit record for each daily sweep
 export const AutoAddRunBreakdownEntrySchema = z.object({
@@ -249,6 +268,56 @@ export interface InstantlySequenceStep {
   body: string;
   delay?: number; // delay in days
 }
+
+// Lead outreach draft — AI-generated cold email persisted per lead.
+export const LeadDraftSchema = z.object({
+  id: z.string().uuid(),
+  lead_id: z.string().uuid(),
+  subject: z.string(),
+  body: z.string(),
+  status: z.enum(['draft', 'sent_manual']),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
+});
+export type LeadDraft = z.infer<typeof LeadDraftSchema>;
+
+// Manual send event — recorded when the operator sends a draft from their mailbox.
+export const ManualSendEventSchema = z.object({
+  id: z.string().uuid(),
+  lead_id: z.string().uuid(),
+  draft_id: z.string().uuid(),
+  mailbox_label: z.string().nullable(),
+  notes: z.string().nullable(),
+  sent_at: z.string().datetime(),
+  created_at: z.string().datetime(),
+});
+export type ManualSendEvent = z.infer<typeof ManualSendEventSchema>;
+
+// Company sending domain — dev-safe state only, no real DNS mutation.
+export const CompanyDomainSchema = z.object({
+  id: z.string().uuid(),
+  company_id: z.string().uuid(),
+  domain: z.string(),
+  verification_status: z.enum(['unverified', 'verification_pending', 'verified', 'dns_error']),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
+});
+export type CompanyDomain = z.infer<typeof CompanyDomainSchema>;
+
+// Company mailbox — dev-safe state only, no real provisioning/SMTP.
+export const CompanyMailboxSchema = z.object({
+  id: z.string().uuid(),
+  company_id: z.string().uuid(),
+  provider: z.string(),
+  label: z.string(),
+  connection_status: z.enum(['unconnected', 'credentials_saved', 'verified', 'connection_error']),
+  warmup_state: z.enum(['not_started', 'warming', 'ready', 'paused']),
+  warmup_day: z.number(),
+  daily_cap: z.number(),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
+});
+export type CompanyMailbox = z.infer<typeof CompanyMailboxSchema>;
 
 // AI Generation types
 export interface GeneratedQuery {

@@ -7,8 +7,55 @@ export const CompanySchema = z.object({
     description: z.string(),
     target_audience: z.string(),
     default_sequence_length: z.number().min(1).max(3).default(2),
+    // Autopilot (daily auto-add sweep) preferences
+    auto_add_enabled: z.boolean().optional(),
+    auto_add_min_fit_score: z.number().min(1).max(10).optional(),
+    auto_add_daily_limit: z.number().min(0).max(500).optional(),
+    auto_add_run_hour_utc: z.number().min(0).max(23).optional(),
+    auto_add_digest_email: z.string().nullable().optional(),
+    auto_add_regenerate_drafts: z.boolean().optional(),
+    workspace_id: z.string().uuid().nullable().optional(),
     created_at: z.string().datetime(),
     updated_at: z.string().datetime(),
+});
+// Workspace — minimal multi-tenant boundary (v1 operator-only).
+export const WorkspaceSchema = z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    owner_user_id: z.string().uuid().nullable().optional(),
+    created_at: z.string().datetime(),
+});
+export const WorkspaceMemberSchema = z.object({
+    id: z.string().uuid(),
+    workspace_id: z.string().uuid(),
+    user_id: z.string(),
+    role: z.enum(['owner', 'admin', 'member']),
+    created_at: z.string().datetime(),
+});
+// Auto Add Run — audit record for each daily sweep
+export const AutoAddRunBreakdownEntrySchema = z.object({
+    campaignId: z.string().uuid(),
+    campaignName: z.string(),
+    count: z.number(),
+    avgFitScore: z.number(),
+});
+export const AutoAddRunSchema = z.object({
+    id: z.string().uuid(),
+    company_id: z.string().uuid(),
+    run_started_at: z.string().datetime(),
+    run_completed_at: z.string().datetime().nullable(),
+    leads_considered: z.number().default(0),
+    leads_added: z.number().default(0),
+    leads_skipped: z.number().default(0),
+    min_fit_score: z.number(),
+    daily_limit: z.number(),
+    breakdown: z.array(AutoAddRunBreakdownEntrySchema).default([]),
+    added_lead_ids: z.array(z.string().uuid()).default([]),
+    skip_reasons: z.record(z.number()).default({}),
+    digest_sent: z.boolean().default(false),
+    digest_error: z.string().nullable().optional(),
+    error: z.string().nullable().optional(),
+    trigger: z.enum(['cron', 'manual']).default('cron'),
 });
 // Exa Query schema
 export const ExaQuerySchema = z.object({
@@ -138,5 +185,47 @@ export const AllowedUserSchema = z.object({
     id: z.string().uuid(),
     email: z.string().email(),
     created_at: z.string().datetime(),
+});
+// Lead outreach draft — AI-generated cold email persisted per lead.
+export const LeadDraftSchema = z.object({
+    id: z.string().uuid(),
+    lead_id: z.string().uuid(),
+    subject: z.string(),
+    body: z.string(),
+    status: z.enum(['draft', 'sent_manual']),
+    created_at: z.string().datetime(),
+    updated_at: z.string().datetime(),
+});
+// Manual send event — recorded when the operator sends a draft from their mailbox.
+export const ManualSendEventSchema = z.object({
+    id: z.string().uuid(),
+    lead_id: z.string().uuid(),
+    draft_id: z.string().uuid(),
+    mailbox_label: z.string().nullable(),
+    notes: z.string().nullable(),
+    sent_at: z.string().datetime(),
+    created_at: z.string().datetime(),
+});
+// Company sending domain — dev-safe state only, no real DNS mutation.
+export const CompanyDomainSchema = z.object({
+    id: z.string().uuid(),
+    company_id: z.string().uuid(),
+    domain: z.string(),
+    verification_status: z.enum(['unverified', 'verification_pending', 'verified', 'dns_error']),
+    created_at: z.string().datetime(),
+    updated_at: z.string().datetime(),
+});
+// Company mailbox — dev-safe state only, no real provisioning/SMTP.
+export const CompanyMailboxSchema = z.object({
+    id: z.string().uuid(),
+    company_id: z.string().uuid(),
+    provider: z.string(),
+    label: z.string(),
+    connection_status: z.enum(['unconnected', 'credentials_saved', 'verified', 'connection_error']),
+    warmup_state: z.enum(['not_started', 'warming', 'ready', 'paused']),
+    warmup_day: z.number(),
+    daily_cap: z.number(),
+    created_at: z.string().datetime(),
+    updated_at: z.string().datetime(),
 });
 //# sourceMappingURL=index.js.map

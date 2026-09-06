@@ -61,6 +61,7 @@ export async function PATCH(
     if (body.auto_add_digest_email !== undefined) updateData.auto_add_digest_email = body.auto_add_digest_email;
     if (body.auto_add_regenerate_drafts !== undefined) updateData.auto_add_regenerate_drafts = body.auto_add_regenerate_drafts;
     if (body.system_enabled !== undefined) updateData.system_enabled = body.system_enabled;
+    if (body.workspace_id !== undefined) updateData.workspace_id = body.workspace_id;
 
     const { data: company, error } = await supabase
       .from('companies')

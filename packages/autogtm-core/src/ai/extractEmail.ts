@@ -3,18 +3,12 @@
  * Uses a fast model to parse unstructured enrichment objects and pull out an email
  */
 
-import OpenAI from 'openai';
 import { z } from 'zod';
+import { getOpenAIClient, resolveModel } from './client';
 
 const ResultSchema = z.object({
   email: z.string().email().nullable().catch(null),
 });
-
-function getOpenAIClient(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY is required');
-  return new OpenAI({ apiKey });
-}
 
 export async function extractEmailFromEnrichmentData(enrichmentData: unknown): Promise<string | null> {
   if (!enrichmentData) return null;
@@ -27,7 +21,7 @@ export async function extractEmailFromEnrichmentData(enrichmentData: unknown): P
   const openai = getOpenAIClient();
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4.1-nano',
+    model: resolveModel('gpt-4.1-nano'),
     messages: [
       {
         role: 'system',
